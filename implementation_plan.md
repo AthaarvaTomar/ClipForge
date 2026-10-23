@@ -10,7 +10,7 @@ Rule: execute ONE checkbox at a time. Copy the active item into `task.md`.
 - [ ] 0.5 GitHub Actions: lint + typecheck + test
 
 ## Phase 1 — Auth & Database
-- [ ] 1.1 Prisma schema (see `docs/architecture.md`) + first migration
+- [x] 1.1 Prisma schema (see `docs/architecture.md`) (done except migration)
 - [ ] 1.2 Clerk integration, middleware protecting `/dashboard` and `/api`
 - [ ] 1.3 User sync (Clerk webhook or upsert on first request)
 - [ ] 1.4 Dashboard shell layout (sidebar, header, empty state)

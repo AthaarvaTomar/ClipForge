@@ -10,5 +10,11 @@
     "test": "echo \"db test not initialized yet\"",
     "db:migrate": "echo \"Prisma migration not initialized yet\"",
     "db:studio": "echo \"Prisma studio not initialized yet\""
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
   }
 }

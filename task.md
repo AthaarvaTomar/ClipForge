@@ -3,25 +3,25 @@
 > Feed ONLY this file (plus AGENTS.md) to the AI each session. Keep it to ~2 hours of work.
 
 ## Active Item
-- Plan ref: 0.2 — Next.js 15 + Tailwind + shadcn/ui in `apps/web`
+- Plan ref: 1.1 Prisma schema (done except migration)
 
 ## Goal
-Set up Next.js 15 with App Router, TypeScript, Tailwind CSS, and shadcn/ui in `apps/web`.
+Set up Prisma schema in `packages/db`, export a singleton PrismaClient, validate schema, and generate Prisma client.
 
 ## Steps
-- [ ] Initialize Next.js 15 in `apps/web` with App Router, TypeScript, and Tailwind CSS
-- [ ] Initialize and configure shadcn/ui
-- [ ] Verify `apps/web` scripts (`dev`, `build`, `lint`, `typecheck`)
-- [ ] Add minimal shell/landing placeholder
+- [x] Paste the schema from docs/architecture.md into packages/db/prisma/schema.prisma
+- [x] Export a singleton PrismaClient from packages/db/src/index.ts
+- [x] Run `prisma validate` and `prisma generate`
+- [ ] Run `prisma migrate dev --name init` (deferred until live DB configured)
 
 ## Constraints
-- Do not integrate Clerk or Prisma yet (Phase 1).
-- Keep changes scoped to `apps/web`.
+- No seed data, no other packages touched.
+- Work strictly inside `packages/db`.
 
 ## Done When
-- `pnpm --filter @clipforge/web build` succeeds
-- `pnpm -r typecheck` passes
-- Checkbox 0.2 ticked in `implementation_plan.md`
+- `prisma validate` succeeds
+- `prisma generate` succeeds
+- `pnpm --filter @clipforge/db typecheck` passes
 
 ## Notes / Blockers
-(none)
+- run init migration once DATABASE_URL is real

@@ -1,0 +1,100 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ProjectStatus {
+  CREATED
+  UPLOADED
+  TRANSCRIBING
+  ANALYZING
+  READY
+  FAILED
+}
+
+enum ClipStatus {
+  DRAFT
+  QUEUED
+  RENDERING
+  DONE
+  FAILED
+}
+
+model User {
+  id        String    @id // Clerk user id
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  projects  Project[]
+}
+
+model Project {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  status      ProjectStatus    @default(CREATED)
+  failedStage String?
+  error       String?
+  videoKey    String // storage key
+  audioKey    String?
+  durationSec Float?
+  width       Int?
+  height      Int?
+  createdAt   DateTime         @default(now())
+  words       TranscriptWord[]
+  moments     Moment[]
+  clips       Clip[]
+
+  @@index([userId, createdAt])
+}
+
+model TranscriptWord {
+  id        Int     @id @default(autoincrement())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  idx       Int
+  text      String
+  start     Float
+  end       Float
+
+  @@unique([projectId, idx])
+}
+
+model Moment {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  start     Float
+  end       Float
+  title     String
+  hook      String
+  reason    String
+  score     Int
+  clips     Clip[]
+
+  @@index([projectId])
+}
+
+model Clip {
+  id           String     @id @default(cuid())
+  projectId    String
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  momentId     String?
+  moment       Moment?    @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  title        String
+  start        Float
+  end          Float
+  cropX        Float      @default(0.5) // 0..1 horizontal center
+  captionStyle String     @default("bold-highlight")
+  captions     Json // [{start,end,text,words:[...]}] edited segments
+  status       ClipStatus @default(DRAFT)
+  outputKey    String?
+  error        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([projectId, status])
+}
