@@ -1,0 +1,12 @@
+{
+  "name": "@clipforge/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"worker dev not initialized yet\"",
+    "build": "echo \"worker build not initialized yet\"",
+    "lint": "echo \"worker lint not initialized yet\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"worker test not initialized yet\""
+  }
+}

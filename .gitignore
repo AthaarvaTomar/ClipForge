@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files
+.env
+.env*.local
+!.env.example
+
+# Next.js build outputs
+.next/
+out/
+
+# Production / build artifacts
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Local data & temp files
+temp/
+tmp/
+*.ass
+*.mp4
+*.mp3
+*.wav
+
+# Coverage
+coverage/
