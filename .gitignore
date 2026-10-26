@@ -1,4 +1,47 @@
-# Dependencies
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Pytest / Mypy / Coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Databases & Local Data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite3
+data/
+
+# Dependencies & Node
 node_modules/
 .pnpm-store/
 
@@ -7,13 +50,10 @@ node_modules/
 .env*.local
 !.env.example
 
-# Next.js build outputs
+# Production / build artifacts
 .next/
 out/
-
-# Production / build artifacts
 dist/
-build/
 
 # Logs
 *.log
@@ -29,13 +69,10 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
-# Local data & temp files
+# Local media / temp
 temp/
 tmp/
 *.ass
 *.mp4
 *.mp3
 *.wav
-
-# Coverage
-coverage/

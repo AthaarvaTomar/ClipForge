@@ -1,42 +1,566 @@
-# Audit — ClipForge AI
+# Audit Log — ClipForge AI Backend
 
-Run after each phase. Prompt for the AI:
-> "Read prd.md, implementation_plan.md, and the code. For the phase just completed, go through this checklist. Report findings as: Severity (High/Med/Low), File, Issue, Fix. Do not change code until I approve."
+## Session Log
 
-## 1. Plan vs Code
-- [ ] Every ticked item in `implementation_plan.md` exists in code
-- [ ] No feature outside PRD MVP scope has been added
-- [ ] Orphaned files / unused exports / dead routes
-- [ ] Env vars used in code all exist in `.env.example`
+### Session: Task A1 Scaffold & Cleanup
+- **Objective**: Scaffold Python backend, setup virtual environment, create configuration, docker-compose for Redis, `/health` endpoint, and clean up obsolete TypeScript/Node repository files.
+- **Implemented**:
+  - `requirements.txt`: FastAPI, Uvicorn, Pydantic, Pydantic-Settings, python-dotenv, HTTPX, Pytest, Pytest-Asyncio.
+  - `.env.example` & `.env`: Configured for SQLite, Celery, Redis, AI endpoints (Gemini/Ollama), and storage paths.
+  - `docker-compose.yml`: Redis 7 Alpine service mapped to port 6379.
+  - `app/config.py` & root `config.py`: Type-safe settings with Pydantic BaseSettings.
+  - Folder structure: `app/api`, `app/core`, `app/models`, `app/schemas`, `app/services`, `app/tasks`, `tests`.
+  - `app/main.py`: FastAPI application with CORS middleware, lifespan directory setup, and `/health` endpoint.
+  - `tests/test_health.py`: Pytest suite for root and `/health` routes.
+- **Cleanup**:
+  - Removed obsolete TypeScript monorepo directories: `apps/`, `packages/`, `clipforge-ai-backend-starter/`, `node_modules/`.
+  - Removed legacy Node configs: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.nvmrc`.
+  - Updated `architecture.md` to reflect the Python/FastAPI/Celery architecture.
+- **Quality Checks**:
+  - `pytest`: 2 passed in 1.21s.
+  - `ruff check .`: All checks passed.
+  - `mypy app`: Success, 0 issues across 9 source files.
+  - `uvicorn app.main:app` verified running and `/health` returned `{"status": "ok"}`.
 
-## 2. Security
-- [ ] Every API route authenticates and checks ownership
-- [ ] Presigned URLs short-lived; storage bucket not public
-- [ ] Upload mime/size validated on the server
-- [ ] No secrets in repo or client bundle
-- [ ] Rate limits on upload-init and generate/render
-- [ ] FFmpeg args built safely (no shell string interpolation of user input)
-- [ ] AI output validated with zod; timestamps clamped
+### Session: Task A2 DB
+- **Objective**: Database session management, SQLAlchemy 2.x models (`videos`, `transcripts`, `clips`, `jobs`), Alembic migrations.
+- **Implemented**:
+  - `app/core/database.py`: SQLAlchemy engine, `SessionLocal`, declarative `Base`, and `get_db` FastAPI generator dependency.
+  - `app/models/base.py`: `TimestampMixin` with UTC `created_at` and `updated_at`.
+  - `app/models/video.py`: `Video` model with metadata (duration, width, height, fps, orientation, status) and cascade relationships.
+  - `app/models/transcript.py`: `Transcript` model with language, full text, and JSON word-level timestamps.
+  - `app/models/clip.py`: `Clip` model with start/end time, `edit_spec` JSON, status, and output path.
+  - `app/models/job.py`: `Job` model tracking background tasks, progress (0-100), status, error message, and result data.
+  - `alembic/`: Initialized, configured `alembic/env.py` with dynamic URL and `render_as_batch=True` for SQLite compatibility.
+  - Generated initial migration: `alembic/versions/049597e8cacc_create_initial_tables.py`.
+  - Applied migration: `alembic upgrade head`.
+  - `tests/test_db.py`: Verified schema inspection, table existence, and CRUD operations across all four models with cascade delete verification.
+- **Quality Checks**:
+  - `pytest`: 4 passed in 2.98s.
+  - `ruff check .`: All checks passed.
+  - `mypy app`: Success, 0 issues across 15 source files.
 
-## 3. Backend Correctness
-- [ ] Jobs idempotent (re-run does not duplicate transcript/moments)
-- [ ] Retry/backoff configured; failures set status + error message
-- [ ] Temp files cleaned from worker disk
-- [ ] DB indexes on `userId`, `projectId`, `status`
-- [ ] Cascade deletes correct; storage cleanup on delete
+### Session: Task A3 Upload + ffprobe
+- **Objective**: Implement video upload, streaming, validation, ffprobe probe (duration, resolution, orientation), and video CRUD endpoints.
+- **Implemented**:
+  - `static-ffmpeg` and `python-multipart` added to `requirements.txt` and installed.
+  - `app/services/video_probe.py`: Extracts duration, width, height, fps, and orientation (`landscape`, `portrait`, `square`) with rotation compensation via `ffprobe`.
+  - `app/schemas/video.py`: `VideoBase`, `VideoResponse`, `VideoListResponse`.
+  - `app/api/v1/endpoints/videos.py`:
+    - `POST /api/videos`: Streamed chunk-based upload, extension and size validation, ffprobe metadata extraction, and DB record persistence.
+    - `GET /api/videos`: List all uploaded videos with offset and limit pagination.
+    - `GET /api/videos/{id}`: Video details lookup by ID.
+    - `DELETE /api/videos/{id}`: Deletes video DB record and physical file on disk.
+  - `app/api/v1/api.py`: Mounted `/videos` on API v1.
+  - `app/main.py`: Registered `api_router` under `/api`.
+  - `tests/test_videos.py`: End-to-end integration tests with ffmpeg-generated test video clips (landscape 1280x720 and portrait 720x1280).
+- **Quality Checks**:
+  - `pytest`: 8 passed in 5.18s.
+  - `ruff check .`: All checks passed.
+  - `mypy app`: Success, 0 issues across 19 source files.
 
-## 4. Frontend
-- [ ] Loading, empty, error states on every page
-- [ ] No hydration warnings or console errors
-- [ ] Keyboard access for editor controls
-- [ ] Responsive at 375px and 1280px
-- [ ] No client-side secrets or unsigned media URLs
+### Session: Task A4 Celery + jobs
+- **Objective**: Setup Celery worker application, job progress helper, dummy task simulation (0 to 100), and `GET /api/jobs/{id}` endpoint.
+- **Implemented**:
+  - Installed `celery` and `redis` and added to `requirements.txt`.
+  - `app/tasks/celery_app.py`: Celery instance with task discovery and test eager execution configuration.
+  - `app/services/job_service.py`: `JobService` with `create_job`, `update_progress`, and `get_job` managing lifecycle and DB state.
+  - `app/tasks/dummy_task.py`: `run_dummy_task` simulating asynchronous step-by-step progress from 0% to 100% and updating DB state.
+  - `app/schemas/job.py`: `JobResponse`, `DummyJobRequest`.
+  - `app/api/v1/endpoints/jobs.py`:
+    - `POST /api/jobs/dummy`: Dispatches dummy background task to Celery, returning 202 ACCEPTED.
+    - `GET /api/jobs/{id}`: Polls real-time job status and progress (0–100%).
+  - `tests/test_jobs.py`: Tests for `JobService` lifecycle, direct task execution, and API end-to-end flow.
+- **Quality Checks**:
+  - `pytest`: 12 passed in 5.91s.
+  - `ruff check .`: All checks passed.
+  - `mypy app`: Success, 0 issues across 24 source files.
 
-## 5. Quality
-- [ ] Lint, typecheck, tests green
-- [ ] Core flows tested: ownership checks, moment JSON parsing, ASS generation, status transitions
-- [ ] README accurate
+### Session: Task A5 Transcription
+- **Objective**: WAV audio extraction via FFmpeg, faster-whisper with word timestamps, background transcription task, and transcript endpoints.
+- **Implemented**:
+  - Installed `faster-whisper` and added to `requirements.txt`.
+  - `app/services/audio_extractor.py`: Extracts 16kHz mono 16-bit PCM WAV audio from video files using FFmpeg.
+  - `app/services/transcription_service.py`: Runs faster-whisper with `word_timestamps=True`, returning structured words with start, end, and probability; patched PyAV v14+ open argument compatibility.
+  - `app/tasks/transcription_task.py`: Celery background task orchestrating audio extraction, transcription, DB persistence of `Transcript` model, and real-time job progress reporting (10% -> 30% -> 60% -> 100%).
+  - `app/schemas/transcript.py`: `WordTimestamp` and `TranscriptResponse`.
+  - `app/api/v1/endpoints/transcripts.py`:
+    - `POST /api/transcripts/{video_id}`: Enqueues transcription job, returns 202 ACCEPTED.
+    - `GET /api/transcripts/{video_id}`: Retrieves stored transcript and word timestamps.
+  - `tests/test_transcription.py`: Integration tests for audio extraction, real faster-whisper execution, and API endpoints.
+- **Quality Checks**:
+  - `pytest`: 15 passed in 9.51s.
+  - `ruff check .`: All checks passed.
+  - `mypy app`: Success, 0 issues across 29 source files.
 
-## Findings Log
-| Date | Phase | Severity | Issue | Status |
-|------|-------|----------|-------|--------|
+### Session: Task A6 Highlights
+- **Objective**: Implement highlight detection using Google Gemini as primary provider with local Ollama fallback, JSON extraction/validation with Pydantic, draft clips creation, Celery background task, and API endpoints.
+- **Implemented**:
+  - `app/schemas/highlight.py`: `HighlightMoment`, `HighlightResponse`, and `parse_and_validate_highlights_json()` with markdown fence stripping and timestamp bounds validation (`end_time > start_time`).
+  - `app/schemas/clip.py`: `ClipBase`, `ClipResponse`, and `ClipListResponse`.
+  - `app/services/highlight_service.py`: `HighlightService` orchestrating prompt construction with timestamp anchors, Gemini REST API invocation with `responseMimeType: "application/json"`, and automatic fallback to Ollama REST API (`/api/generate` with `format: "json"`).
+  - `app/tasks/highlight_task.py`: Celery background task `detect_highlights_task` updating job progress (10% -> 40% -> 80% -> 100%) and persisting draft `Clip` records with virality hooks, reasons, scores, and initial cut segment specs in the database.
+  - `app/tasks/celery_app.py` & `app/tasks/__init__.py`: Registered `highlight_task` in Celery task discovery.
+  - `app/api/v1/endpoints/highlights.py`:
+    - `POST /api/highlights/{video_id}`: Validates video and transcript, creates job, enqueues background highlight detection, and returns 202 ACCEPTED.
+    - `GET /api/highlights/{video_id}`: Lists all draft clips generated for the video.
+  - `app/api/v1/api.py`: Mounted `/highlights` on API v1.
+  - `tests/test_highlights.py`: Unit and integration test suite covering markdown fence JSON parsing, Gemini success, Ollama fallback, full Celery task + endpoints integration, and live Gemini API verification with real API key.
+- **Quality Checks**:
+### Session: Task A7 EditSpec + clips CRUD
+- **Objective**: Implement Pydantic schema for `EditSpec` with strict validators (cuts, reframing, captions, color grading, transitions), `ClipCreate` and `ClipUpdate` schemas, full CRUD endpoints (`POST /api/clips`, `GET /api/clips`, `GET /api/clips/{id}`, `PATCH /api/clips/{id}`, `DELETE /api/clips/{id}`), and test suite.
+- **Implemented**:
+  - `app/schemas/edit_spec.py`: `CutSegment`, `ReframeSpec`, `CaptionSpec`, `GradeSpec`, `TransitionSpec`, and `EditSpec` with chronological non-overlapping cut validation, color hex validation, and duration computation.
+  - `app/schemas/clip.py`: `ClipCreate`, `ClipUpdate`, `ClipResponse`, `ClipListResponse` with auto-computation of start/end times from cuts and time range validation.
+  - `app/api/v1/endpoints/clips.py`:
+    - `POST /api/clips`: Creates new clip with validated EditSpec, validates cuts against video duration, returns 201 Created.
+    - `GET /api/clips`: Lists clips with optional `video_id` and `status` filters, with limit/offset pagination.
+    - `GET /api/clips/{id}`: Retrieves clip by ID or returns 404.
+    - `PATCH /api/clips/{id}`: Updates title, EditSpec, cuts, times, or status with duration and boundary validation.
+    - `DELETE /api/clips/{id}`: Deletes clip record from DB and unlinks rendered output file from storage if present.
+  - `app/api/v1/api.py`: Registered `clips.router` in API v1.
+  - `tests/test_clips.py`: Comprehensive test suite verifying valid specs, empty cuts rejection, backwards/equal cuts rejection, overlapping/out-of-order cuts rejection, invalid aspect ratios, invalid hex colors, API CRUD operations, 404s, and duration overflow 422s.
+### Session: Task A8 FFmpeg builder
+- **Objective**: Implement filter graph builder for trimming/concatenating cuts, reframing (crop & blur-bg in both directions: 16:9 -> 9:16, 9:16 -> 16:9, and same-aspect), color grading presets/custom adjustments/3D LUT, and robust audio fallback (`anullsrc`) for silent videos.
+- **Implemented**:
+  - `app/services/ffmpeg_builder.py`:
+    - `get_target_resolution(aspect_ratio, sw, sh)`: Maps standard aspect ratios (`9:16`, `16:9`, `1:1`, `4:5`) ensuring even dimensions for H.264 encoders.
+    - `check_has_audio(file_path)`: Uses `ffprobe` to inspect audio streams.
+    - `build_cuts_filter(cuts, has_audio)`: Generates `trim`/`atrim` and `setpts`/`asetpts` filters, automatically concatenating multi-cut segments with `concat=n=N:v=1:a=1` and generating silent audio (`anullsrc`) if the source lacks audio tracks.
+    - `build_reframe_filter(...)`: Handles reframing in both directions:
+      - `strategy="crop"`: scales with `force_original_aspect_ratio=increase` and crops with `crop_x_offset` positioning.
+      - `strategy="blur-bg"`: splits stream, blurs padded background with `boxblur=20:5`, fits foreground with `force_original_aspect_ratio=decrease`, and overlays centered.
+      - Same-aspect: Direct scale & pad with aspect retention.
+    - `build_grade_filter(...)`: Presets (`cinematic`, `warm`, `cool`, `vibrant`, `bw`), custom `eq` adjustments (`brightness`, `contrast`, `saturation`), and 3D LUT support.
+    - `FFmpegBuilder`: Builds complete `-filter_complex` graphs and executes FFmpeg renders with timeout handling and output validation.
+  - `app/services/__init__.py`: Exported `FFmpegBuilder`, `FFmpegBuilderError`, and helper builder functions.
+  - `tests/test_ffmpeg_builder.py`: Comprehensive test suite testing filter generators, resolution mappings, 16:9 -> 9:16 crop, 16:9 -> 9:16 blur-bg, 9:16 -> 16:9 crop, 9:16 -> 16:9 blur-bg, same-aspect 16:9, same-aspect 9:16, multi-cut concatenation with color grading, no-audio video handling, and missing file error raising.
+### Session: Task A9 Transitions
+- **Objective**: Implement chained `xfade` (video) and `acrossfade` (audio) transitions with cumulative offset calculations, handle audio-less source videos via synchronized `anullsrc`, and verify 3-segment transitions with A/V sync.
+- **Implemented**:
+  - `XFADE_TRANSITION_MAP`: Mapped transition spec names (`fade`, `wipeleft`, `wiperight`, `slideup`, `slidedown`, `circlecrop`, `dissolve`, `pixelize`) to native FFmpeg `xfade` transitions.
+  - Chained cumulative offsets in `app/services/ffmpeg_builder.py`:
+    - Video offset $O_k = Acc_k - D$, where $Acc_k$ accumulates trimmed segment durations minus overlap $D$.
+    - Audio chained `acrossfade=d=D` keeping exact sample and frame synchronization.
+  - Safe fallback for audio-less videos: generates silent audio tracks per cut with `anullsrc=channel_layout=stereo:sample_rate=44100` before chaining, preventing FFmpeg crashes.
+  - Tests in `tests/test_ffmpeg_builder.py`:
+    - `test_build_cuts_filter_chained_xfade_acrossfade`: Verifies cumulative offsets (1.5s, 3.0s) and filter graph syntax.
+    - `test_render_3_segment_transitions_smooth_and_av_sync`: 3-segment render with `fade` transition; probed duration is exactly within expected $(L_0+L_1+L_2 - 2D) \pm \epsilon$.
+    - `test_render_3_segment_transitions_wipeleft`: 3-segment render with `wipeleft` transition in landscape 16:9.
+    - `test_render_3_segment_transitions_no_audio`: 3-segment render on video without audio stream.
+### Session: Task A10 ASS builder
+- **Objective**: Implement Advanced SubStation Alpha (`.ass`) subtitle builder supporting title cards, 5 caption animations (`highlight`, `pop`, `fade`, `bounce`, `none`), word-to-cut timestamp remapping accounting for transitions, and verify burn-in playback with FFmpeg.
+- **Implemented**:
+  - `app/services/ass_builder.py`:
+    - `hex_to_ass_color()`: Converts `#RRGGBB` or `#RGB` hex colors to reverse-order ASS color representation `&HAABBGGRR&` with alpha channel support.
+    - `format_ass_timestamp()`: Converts floating seconds into ASS standard centisecond format `H:MM:SS.cc`.
+    - `remap_words_to_cuts()`: Remaps transcript word timestamps across multi-cut segments with cumulative transition offsets and boundary clamping.
+    - `chunk_words_into_lines()`: Groups remapped words into punchy 2-4 word caption phrases suitable for vertical video with pause and punctuation breaking.
+    - `ASSBuilder`: Builds standard ASS script header, V4+ styles for default captions and title cards, and dialogue events for title cards and all 5 animations:
+      - `highlight`: Active spoken word highlighted with `{\c<highlight_color>\b1}`.
+      - `pop`: Active spoken word scaled up dynamically with `{\t(0,100,\fscx120\fscy120)\t(100,200,\fscx100\fscy100)}`.
+      - `fade`: Smooth chunk fade in and out via `{\fad(150,150)}`.
+      - `bounce`: Playful vertical squash and stretch transforms on active spoken words.
+      - `none`: Clean, unstyled text.
+    - `write_ass_file()`: Writes the rendered ASS subtitle file to disk.
+  - `app/services/__init__.py`: Exported `ASSBuilder`, `ASSBuilderError`, `RemappedWord`, `hex_to_ass_color`, `remap_words_to_cuts`.
+  - `tests/test_ass_builder.py`: Comprehensive test suite with 12 tests covering color conversion, timestamp formatting, single & multi-cut timestamp remapping with transitions, chunking, all 5 animations, title card generation, and end-to-end subtitle burn-in rendering with FFmpeg.
+- **Quality Checks**:
+  - `pytest tests/test_ass_builder.py`: 12 passed in 5.26s.
+  - Full `pytest` suite: 67 passed across all 9 test modules in 66.75s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 48 source files.
+
+### Session: Task A11 Render Pipeline & Endpoints
+- **Objective**: Implement FFmpeg runner with real-time progress parsing and failure cleanup, Celery render task with automatic subtitle generation and job progress tracking (0-100%), and REST endpoints for rendering, downloading MP4s, and extracting preview frames.
+- **Implemented**:
+  - `app/services/ffmpeg_builder.py`:
+    - Added `total_duration` property accounting for cut durations and transition overlaps.
+    - Updated `build_command(with_progress=True)` emitting `-progress pipe:1 -nostats`.
+    - Updated `FFmpegBuilder.run()`: runs FFmpeg with `on_progress` callback updating percentage based on `out_time_us`, background stderr drainage to prevent buffer deadlocks, and automatic cleanup of partial files on failure.
+    - Added `extract_preview_frame(video_path, timestamp, output_file)`: extracts a single frame as JPEG directly to bytes or disk via `-f image2 pipe:1`.
+  - `app/tasks/render_task.py`:
+    - `render_clip_task(job_id, clip_id)`: Celery background task querying video, transcript, and clip records; generating temporary ASS subtitles with `ASSBuilder` when captions are enabled; running `FFmpegBuilder` with real-time job progress (10% -> 95% -> 100%); persisting `output_path` and `status="COMPLETED"`; and cleaning up temporary subtitle files.
+    - Registered `render_task` in `celery_app.py` and exported in `app/tasks/__init__.py`.
+  - `app/api/v1/endpoints/clips.py`:
+    - `POST /api/clips/{id}/render`: Dispatches background render job, sets clip to `QUEUED`, returns 202 ACCEPTED with `JobResponse`.
+    - `GET /api/clips/{id}/download`: Streams rendered MP4 file as `FileResponse` with attachment headers, or returns 400 if still rendering.
+    - `GET /api/clips/{id}/preview-frame`: Extracts single JPEG frame at given `time` offset (from rendered clip if completed, or mapped from source video cuts).
+  - `tests/test_render.py`: Comprehensive test suite verifying FFmpeg progress callbacks, failure cleanup, frame extraction, end-to-end Celery rendering with subtitles, and API endpoints (`POST /render`, `GET /download`, `GET /preview-frame`).
+- **Quality Checks**:
+  - `pytest tests/test_render.py`: 5 passed in 9.54s.
+  - Full `pytest` suite: 72 passed across all 10 test modules in 74.50s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 50 source files.
+
+### Session: Task A12 Presets
+- **Objective**: Implement configurable presets in structured JSON files (`grades.json`, `transitions.json`, `animations.json`, `fonts.json`), create `PresetService` with fallback defaults, and expose `GET /api/presets` endpoint.
+- **Implemented**:
+  - `data/presets/`:
+    - `grades.json`: Color grading presets (`none`, `cinematic`, `warm`, `cool`, `vibrant`, `bw`) with brightness, contrast, and saturation presets.
+    - `transitions.json`: Scene transition presets (`none`, `fade`, `wipeleft`, `wiperight`, `slideup`, `slidedown`, `circlecrop`, `dissolve`, `pixelize`) with recommended durations.
+    - `animations.json`: Subtitle animations (`highlight`, `pop`, `fade`, `bounce`, `none`) with recommended font sizes and positions.
+    - `fonts.json`: Curated typography list (`Arial`, `Impact`, `Montserrat`, `Oswald`, `Roboto`, `Anton`, `Bebas Neue`).
+  - `app/schemas/preset.py`: `GradePreset`, `TransitionPreset`, `AnimationPreset`, `FontPreset`, `PresetsResponse`.
+  - `app/services/preset_service.py`: `PresetService` loading JSON presets dynamically with graceful fallback to built-in defaults.
+  - `app/api/v1/endpoints/presets.py`: Mounted `GET /api/presets` on `api_router`.
+  - `tests/test_presets.py`: Tests for JSON loading, schema validation, fallback behavior with empty directory, and endpoint verification.
+- **Quality Checks**:
+  - `pytest tests/test_presets.py`: 3 passed in 4.91s.
+  - Full `pytest` suite: 75 passed across all 11 test modules in 99.07s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 54 source files.
+
+### Session: Task A13 Hardening
+- **Objective**: Implement production hardening including standardized error response envelopes, optional API key authentication, configurable CORS, structured logging and request timing middleware, render concurrency limiting (HTTP 429), timeouts, and failure recovery when FFmpeg is terminated mid-render.
+- **Implemented**:
+  - `app/config.py`: Added `API_KEY`, `CORS_ORIGINS`, `LOG_LEVEL`, `RENDER_CONCURRENCY_LIMIT`, `FFMPEG_TIMEOUT_SECONDS`, and `AI_TIMEOUT_SECONDS`.
+  - `app/core/logging.py`: Structured logging utility with formatted timestamps and log level controls.
+  - `app/core/security.py`: `verify_api_key` dependency verifying `X-API-Key` or `Authorization: Bearer <key>` when `API_KEY` is configured; automatically bypassed when unset for development.
+  - `app/main.py`:
+    - Configured `CORSMiddleware` with configurable `settings.CORS_ORIGINS`.
+    - Request timing middleware recording elapsed execution time in `X-Process-Time-Ms` header and logging request telemetry.
+    - Standardized error handlers for `HTTPException`, `RequestValidationError` (safely serialized via `jsonable_encoder`), and unhandled `Exception` returning consistent `{detail: ..., error: {code: ..., message: ...}}` envelopes.
+    - Secured `api_router` with `verify_api_key` dependency while keeping `/health`, `/`, and `/docs` openly accessible.
+  - `app/api/v1/endpoints/clips.py`: Added concurrency limit check (`HTTP 429 Too Many Requests`) rejecting new renders when active renders reach `RENDER_CONCURRENCY_LIMIT`.
+  - `app/tasks/render_task.py`: Configured FFmpeg execution with `settings.FFMPEG_TIMEOUT_SECONDS` timeout.
+  - `tests/test_hardening.py`: 8 comprehensive tests validating error shapes (404 and 422), optional API key enforcement and bypass, CORS headers, timing middleware, concurrency limits (429), timeout handling, and killing FFmpeg mid-render (ensuring job is marked `FAILED` with descriptive error message and partial files are unlinked).
+- **Quality Checks**:
+  - `pytest tests/test_hardening.py`: 8 passed in 5.21s.
+### Session: Task A14 Tests
+- **Objective**: Consolidate comprehensive test suite covering builder, ass_builder, EditSpec, and add a complete 5-second end-to-end integration test exercising the full workflow.
+- **Implemented**:
+  - `tests/test_integration.py`:
+    - `test_editspec_exact_boundary_cuts`: Validates EditSpec boundary handling with non-overlapping cuts summing to duration.
+    - `test_ass_builder_special_character_escaping`: Validates ASS script generation with special characters in titles and spoken words (`{`, `}`, `\`).
+    - `test_ffmpeg_builder_multi_cut_blur_bg`: Validates multi-cut trimming and transitions with `blur-bg` reframing strategy to 9:16 portrait.
+    - `test_five_second_end_to_end_pipeline`: Comprehensive full-pipeline integration test on a 5.0s 1280x720 video:
+      1. Streamed video upload (`POST /api/videos`) and ffprobe property extraction (1280x720, landscape, 5.0s).
+      2. Background transcription (`POST /api/transcripts/{video_id}`) generating word-level timestamps.
+      3. Highlight detection (`POST /api/highlights/{video_id}`) persisting draft clip with virality metadata.
+      4. EditSpec configuration (`PATCH /api/clips/{id}`) with multi-cut trims, 16:9 -> 9:16 crop, fade transition, cinematic color grade, and animated pop captions.
+      5. Celery background render execution (`POST /api/clips/{id}/render`) tracking job progress to 100%.
+      6. Preview frame extraction (`GET /api/clips/{id}/preview-frame`) returning valid JPEG byte stream.
+      7. Download rendered MP4 (`GET /api/clips/{id}/download`) and ffprobe verification confirming 1080x1920 portrait dimensions, audio/video synchronization, and calculated duration.
+      8. Cascade deletion and asset unlinking (`DELETE /api/clips/{id}`, `DELETE /api/videos/{id}`).
+- **Quality Checks**:
+  - `pytest tests/test_integration.py`: 4 passed in 21.99s.
+  - Full `pytest` suite: 87 passed across all 12 test modules in 114.12s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 58 source files.
+
+### Session: Task A15 README
+- **Objective**: Author a comprehensive, production-ready `README.md` enabling a fresh machine to setup, configure, run (API + worker), test, and interact with the ClipForge AI backend.
+- **Implemented**:
+  - `README.md`:
+    - Overview, architecture, and technology stack breakdown (FastAPI, Celery, Redis, SQLAlchemy 2.x, Alembic, faster-whisper, Gemini/Ollama, static-ffmpeg, ASS subtitles).
+    - Step-by-step installation instructions: virtualenv creation, dependency installation, `.env` configuration, Redis launch via docker-compose, and Alembic database migrations.
+    - Commands to run both services: FastAPI with Uvicorn on port 8000 and the Celery worker process.
+    - Complete, verified `curl` examples exercising the entire workflow:
+      - Health check (`GET /health`)
+      - Presets catalog (`GET /api/presets`)
+      - Video upload and ffprobe metadata inspection (`POST /api/videos`)
+      - Audio transcription with word-level timestamps (`POST /api/transcripts/{id}`)
+      - Job progress polling (`GET /api/jobs/{id}`)
+      - Highlight moment detection (`POST /api/highlights/{id}`)
+      - Draft clips retrieval (`GET /api/highlights/{id}`)
+      - EditSpec customization with cuts, reframing, grades, transitions, and captions (`PATCH /api/clips/{id}`)
+      - Celery video rendering (`POST /api/clips/{id}/render`)
+      - Preview frame extraction (`GET /api/clips/{id}/preview-frame`)
+      - Vertical MP4 download (`GET /api/clips/{id}/download`)
+      - Asset cleanup (`DELETE /api/clips/{id}`, `DELETE /api/videos/{id}`)
+    - Security documentation for optional API key authentication (`X-API-Key` / `Authorization: Bearer`).
+    - Testing commands (`pytest`, `ruff check .`, `mypy app tests`).
+  - `.env.example`: Documented optional security (`API_KEY`, `CORS_ORIGINS`) and concurrency/timeout settings.
+- **Quality Checks**:
+  - Full `pytest` suite: 87 passed across all 12 test modules in 108.26s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 58 source files.
+
+### Session: Task F1 Scaffold (Phase 2 Frontend Test Console)
+- **Objective**: Scaffold the Vite React TypeScript test console, setup `.env.example`, organize project directories (`api/`, `pages/`, `components/`, `hooks/`), and verify `/health` call returning "ok".
+- **Implemented**:
+  - Scaffolding: Initialized Vite React TS project in `frontend/` with non-interactive template, installed dependencies, configured root `package.json` proxy scripts (`npm run dev`, `npm run build`).
+  - Directories: Created `frontend/src/api/`, `frontend/src/pages/`, `frontend/src/components/`, and `frontend/src/hooks/`.
+  - Environment: Added `frontend/.env.example` and `frontend/.env` configuring `VITE_API_URL=http://localhost:8000` and optional `VITE_API_KEY`.
+  - Component & UI: Implemented `frontend/src/App.tsx` and plain CSS in `frontend/src/App.css` (no external UI libraries) featuring:
+    - Automatic and manual on-demand `/health` check with `X-API-Key` forwarding when configured.
+    - Explicit status banner showing `ok` upon connection.
+    - Prominent error banner displaying backend/network error messages and codes without swallowing.
+    - Raw JSON output box displaying the exact backend payload.
+  - Exported OpenAPI schema: Extracted `openapi.json` directly from the FastAPI application to serve as the single source of truth for upcoming typed API client and model generation in F2.
+- **Verification & Quality Checks**:
+  - Browser Verification: Subagent opened `http://localhost:5173/`, confirmed page load, connection to `http://localhost:8000/health`, display of `Status: ok (HTTP 200 OK — Backend is healthy and responding)` and raw JSON `{"status": "ok"}`. Tested interactive recheck.
+  - Frontend Build: `npm run build` (`tsc -b && vite build`) passed with 0 errors.
+  - Backend Lint: `ruff check .` passed with 0 issues.
+  - Backend Type Check: `mypy app` passed with 0 issues across 44 files.
+  - Backend Tests: `pytest tests/test_presets.py` passed (3/3).
+
+### Session: Task F2 API Client (Phase 2 Frontend Test Console)
+- **Objective**: Implement a typed wrapper over fetch + XMLHttpRequest with `X-API-Key` forwarding, full FastAPI error parsing, and endpoint functions (`videos`, `jobs`, `transcripts`, `highlights`, `clips`, `render`, `presets`, `health`), plus a hidden `/debug` interactive test page that calls every endpoint and displays raw JSON responses and errors without swallowing.
+- **Implemented**:
+  - `frontend/src/api/types.ts`: TypeScript definitions matching backend `openapi.json` schemas: `VideoResponse`, `VideoListResponse`, `JobResponse`, `TranscriptResponse`, `WordTimestamp`, `CutSegment`, `ReframeSpec`, `CaptionSpec`, `GradeSpec`, `TransitionSpec`, `EditSpec`, `ClipResponse`, `ClipListResponse`, `ClipCreate`, `ClipUpdate`, `PresetsResponse`, `GradePreset`, `TransitionPreset`, `AnimationPreset`, `FontPreset`, `BackendErrorBody`, `ValidationErrorItem`.
+  - `frontend/src/api/client.ts`:
+    - `ApiError`: typed custom error storing HTTP status, backend error code (`code`), message, structured validation error details, raw response, and `X-Process-Time-Ms`.
+    - `ApiClient`: typed wrapper over `fetch` with optional `X-API-Key` injection from `VITE_API_KEY` or dynamic configuration, and `XMLHttpRequest` with upload progress callback (`0-100%`) for streamed video uploads.
+    - Endpoints exposed:
+      - `health.get()`
+      - `videos.list()`, `videos.get(id)`, `videos.delete(id)`, `videos.upload(file, onProgress)`
+      - `jobs.get(id)`, `jobs.createDummy(duration)`
+      - `transcripts.start(videoId, lang)`, `transcripts.get(videoId)`
+      - `highlights.start(videoId)`, `highlights.get(videoId)`
+      - `clips.create(payload)`, `clips.list(params)`, `clips.get(id)`, `clips.update(id, payload)`, `clips.delete(id)`
+      - `render.start(clipId)`, `render.getDownloadUrl(clipId)`, `render.getPreviewFrameUrl(clipId, time)`
+      - `presets.get()`
+  - `frontend/src/pages/DebugPage.tsx` & `DebugPage.css`: Full interactive test console supporting individual execution of every endpoint, live progress bars, JSON payload editors, parameter inputs, execution timing tags, error banners displaying unswallowed backend error details, and formatted raw JSON outputs with one-click clipboard copying.
+  - `frontend/src/App.tsx`: Path-based routing supporting `/debug` (and `popstate`/`pushState` navigation), with header quick link to navigate to/from the hidden debug page.
+- **Verification & Quality Checks**:
+  - Browser Verification: Subagent opened `http://localhost:5173/debug`, verified endpoint forms, tested `GET /health` (200), `GET /api/presets` (200), `POST /api/jobs/dummy` (200), intentional invalid video fetch displaying backend 404 message without swallowing, and seamless routing back to `/`.
+  - Frontend Build: `npm run build` (`tsc -b && vite build`) passed with 0 errors across 22 modules.
+  - Backend Lint: `ruff check .` passed with 0 issues.
+  - Backend Type Check: `mypy app` passed with 0 issues across 44 files.
+  - Backend Tests: `pytest tests/test_presets.py` passed (3/3).
+
+### Session: Task F3/F4 Layout & New Project Screen (Phase 2 Frontend Test Console)
+- **Objective**: Implement the dark UI matching the design screenshot (bg `#0f1115`, surface `#171a21`, surface-2 `#232833`, border `#262b35`, border-strong `#333a47`, accent `#ff7a45`, ok badge `#1f3a2b`/`#9be3b5`), 220px left sidebar (logo "ClipForge AI", nav items New project, Projects, Caption styles, Settings), and "New project" page with drag-and-drop / file picker drop zone (MP4, MOV, MKV, no YT link), format & enhancements cards, Generate clips with live XHR progress bar, and Recent projects list fetching from `GET /api/videos` with green status badge.
+- **Implemented**:
+  - `frontend/src/index.css`:
+    - Full color tokens, typography (Inter + system-ui fallback), responsive rules (mobile sidebar stacking, single column cards below 800px), 44px min button heights, keyboard focus-visible styling.
+  - `frontend/src/App.tsx`:
+    - 220px Left Sidebar with logo "ClipForge AI" (accent on "AI"), nav items ("New project", "Projects", "Caption styles", "Settings"), active state styling with `surface-2` background, view routing with browser history support, and debug link in sidebar footer.
+  - `frontend/src/pages/NewProject.tsx`:
+    - Header with title "New project" and subtitle "Upload a long video. We transcribe it, find the best moments and cut short clips."
+    - Dashed drop zone supporting drag-and-drop and centered "Browse files" button, non-video rejection, and selected file indicator (with clear button). Removed all YouTube link features per instruction.
+    - Two configuration cards side-by-side: Output format (segmented buttons: Vertical 9:16 default, Horizontal 16:9, Both) and Enhancements (checkboxes for Auto captions, Colour grading, Transitions, Text animation, all checked by default).
+    - "Generate clips" action button triggering streamed upload via `api.videos.upload` with live XHR progress bar (0 to 100%) and inline backend error display.
+    - "Recent projects" section fetching from `GET /api/videos` on mount and after upload, displaying filename, duration, resolution/orientation metadata, and green `ready` badge (`bg #1f3a2b`, `text #9be3b5`).
+- **Verification & Quality Checks**:
+  - Browser Verification: Subagent loaded `http://localhost:5173/`, confirmed visual layout matching screenshot, uploaded video `data/sample_clipforge.mp4`, observed progress bar, and verified video row appeared in Recent projects with metadata and green `ready` status badge.
+  - Frontend Build: `npm run build` (`tsc -b && vite build`) passed with 0 errors across 23 modules.
+  - Backend Lint: `ruff check .` passed with 0 issues.
+  - Backend Type Check: `mypy app` passed with 0 issues across 44 files.
+  - Backend Tests: `pytest tests/test_videos.py` passed (4/4).
+
+### Session: Task T1 Timeline Schema (Phase 3 Timeline Core)
+- **Objective**: Implement Pydantic models for Timeline (`id`, `video_id`, `version`, `tracks`), Track (`type`: video, audio, overlay, caption), Item (source ref, `src_in`, `src_out`, `start`, `effects`, `volume`, `grade`, `transition`). Validate: `src_in < src_out`, within source duration, no overlap on one track. Return 422 with clear messages on invalid input, ensure round-trip JSON serialization, and integer milliseconds everywhere.
+- **Implemented**:
+  - `app/schemas/timeline.py`:
+    - `TrackType` (`StrEnum`: `video`, `audio`, `overlay`, `caption`).
+    - `ItemTransition` (type, duration).
+    - `Item`: `id`, `source_ref`, `src_in`, `src_out`, `start`, `effects`, `volume`, `grade`, `transition`, `text` (for captions), `name`. Validators: `src_in < src_out`, non-negative bounds. Computed properties: `duration = src_out - src_in`, `end = start + duration`.
+    - `Track`: `id`, `name`, `type`, `items`, `muted`, `locked`. Validator: checks for overlapping items on the track using start and duration, producing informative error messages with item indices and millisecond spans.
+    - `Timeline`: `id`, `video_id`, `version`, `tracks`, `source_duration_ms`. Validator: ensures every item on every track satisfies `src_out <= source_duration_ms` when specified. Computed property: `duration` (max end millisecond across all tracks).
+  - Exported schemas in `app/schemas/__init__.py`.
+  - `tests/test_timeline_schema.py`:
+    - 7 comprehensive unit tests verifying valid sample timeline, full round-trip JSON serialization/deserialization, in >= out rejection, negative timestamp rejection, single track overlap rejection with explicit span logging, source duration overflow rejection, and FastAPI HTTP 422 structured error response.
+- **Quality Checks**:
+  - `pytest tests/test_timeline_schema.py`: 7 passed in 0.52s.
+  - Full `pytest` suite: 99 passed across all 13 test modules in 102s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 60 source files.
+
+### Session: Task T2 DB (Phase 3 Timeline Core)
+- **Objective**: Implement database tables `timelines`, `timeline_ops` (seq, group_id, op, inverse_op, actor user|agent, created_at), `timeline_versions` (snapshot every N ops), and generate/apply Alembic migration. Verify tables exist and insert/read works.
+- **Implemented**:
+  - `app/models/timeline.py`:
+    - `TimelineModel` (table `timelines`): `id` (PK UUID), `video_id` (FK to videos, cascade delete), `version` (int), `source_duration_ms` (int ms), `data` (JSON model representation), `created_at`, `updated_at`. Relationships to `video`, `ops`, and `versions`.
+    - `TimelineOpModel` (table `timeline_ops`): `id` (autoincrement PK), `timeline_id` (FK to timelines, cascade delete), `seq` (int), `group_id` (UUID), `op` (JSON), `inverse_op` (JSON), `actor` (`user` | `agent`), `created_at`. UniqueConstraint on `(timeline_id, seq)`.
+    - `TimelineVersionModel` (table `timeline_versions`): `id` (autoincrement PK), `timeline_id` (FK to timelines, cascade delete), `version` (int), `snapshot` (JSON timeline state), `created_at`. UniqueConstraint on `(timeline_id, version)`.
+  - `app/models/video.py`: Added `timelines` relationship to `Video` model with cascade delete-orphan.
+  - `app/models/__init__.py`: Registered and exported `TimelineModel`, `TimelineOpModel`, `TimelineVersionModel`, and `Timeline` alias.
+  - `alembic/versions/1caae1e1c691_create_timeline_tables.py`: Autogenerated and applied schema migration for SQLite and PostgreSQL.
+  - Applied migration to `clipforge.db` via `alembic upgrade head`.
+  - `tests/test_timeline_db.py`:
+    - `test_timeline_tables_exist`: Verified inspector detects `timelines`, `timeline_ops`, and `timeline_versions`.
+    - `test_timeline_crud_and_schema_integration`: Verified insertion, reading, and round-trip rehydration of Pydantic `Timeline` schema from `TimelineModel.data`.
+    - `test_timeline_ops_and_grouping`: Verified operation sequencing, group IDs, actor labels (`user`/`agent`), and unique constraint on `(timeline_id, seq)`.
+    - `test_timeline_versions_snapshot`: Verified version snapshots and unique constraint on `(timeline_id, version)`.
+    - `test_timeline_cascade_deletion`: Verified cascade deletion from `Video` -> `TimelineModel` -> `TimelineOpModel` & `TimelineVersionModel`.
+- **Quality Checks**:
+  - `pytest tests/test_timeline_db.py`: 5 passed in 1.82s.
+  - Full `pytest` suite: 99 passed across all 15 test modules in 92.81s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 62 source files.
+
+### Session: Task T3 Operation Engine (Phase 3 Timeline Core)
+- **Objective**: Implement pure function `apply(timeline, op) -> (new_timeline, inverse_op)` supporting all 13 timeline operations (`add_track`, `remove_track`, `add_item`, `remove_item`, `split`, `trim`, `move`, `ripple_delete`, `set_volume`, `set_grade`, `set_transition`, `add_caption`, `update_caption`), pure immutability, integer milliseconds, and exact inverse restoration.
+- **Implemented**:
+  - `app/services/timeline_engine.py`:
+    - `TimelineOperationError`: Subclass of `ValueError` with descriptive validation messages.
+    - `apply(timeline, op, increment_version=False)`: Pure function creating a deep copy of the timeline without mutating the input, executing operations, and returning the validated new timeline and its exact inverse operation.
+    - Handlers and exact inverses implemented for:
+      - `add_track` <-> `remove_track` (with index preservation).
+      - `remove_track` <-> `add_track` (restores track with all items and index).
+      - `add_item` <-> `remove_item` (with non-overlap check and sorting).
+      - `remove_item` <-> `add_item`.
+      - `split` <-> `merge` (slices an item into left and right pieces; inverse merges contiguous segments from the same source).
+      - `trim` <-> `trim` (adjusts in/out points and start; inverse restores previous bounds).
+      - `move` <-> `move` (moves item across tracks/start positions with overlap protection; inverse moves back).
+      - `ripple_delete` <-> `ripple_insert` (deletes item and shifts subsequent items left by its duration; inverse shifts right and reinserts).
+      - `set_volume` <-> `set_volume` (updates volume with non-negative check; inverse restores previous volume).
+      - `set_grade` <-> `set_grade` (applies/clears `GradeSpec`; inverse restores previous grade).
+      - `set_transition` <-> `set_transition` (applies/clears `ItemTransition`; inverse restores previous transition).
+      - `add_caption` <-> `remove_item` (targets or auto-creates caption track; inverse removes caption or auto-created track).
+      - `update_caption` <-> `update_caption` (updates text, style, start, or duration; inverse restores original state).
+  - Exported `apply` and `TimelineOperationError` in `app/services/__init__.py`.
+  - `tests/test_timeline_engine.py`:
+    - 15 unit tests covering every single operation and asserting `apply(new_tl, inv_op)[0] == original_timeline`.
+    - Immutability verification ensuring original instance is untouched.
+    - Invariant and error cases checking unknown ops, missing tracks, missing items, out-of-range splits, invalid trims, and move overlaps.
+- **Quality Checks**:
+  - `pytest tests/test_timeline_engine.py`: 15 passed in 3.25s.
+  - Full `pytest` suite: 114 passed across all 16 test modules in 108.51s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 64 source files.
+
+### Session: Task T4 Op log, undo/redo, groups (Phase 3 Timeline Core)
+- **Objective**: Implement operation log management, multi-op group persistence sharing `group_id`, single-step grouped undo/redo, redo stack clearing on new ops, optimistic concurrency (HTTP 409 on version mismatch), snapshotting every N ops, and log-state consistency verification.
+- **Implemented**:
+  - `app/config.py` & `.env.example`: Added `TIMELINE_SNAPSHOT_INTERVAL: int = 10`.
+  - `app/models/timeline.py`: Added `current_seq: Mapped[int]` column to `TimelineModel` and `to_schema()` helper.
+  - `alembic/versions/fdef786ff02c_add_current_seq_to_timelines.py`: Added Alembic migration adding `current_seq` to `timelines` table and applied cleanly.
+  - `app/services/timeline_service.py`:
+    - `TimelineNotFoundError` and `TimelineVersionConflictError(current_version, expected_version)`.
+    - `TimelineService.create_timeline`: Creates timeline with `version=1`, `current_seq=0`, and initial snapshot at version 1.
+    - `TimelineService.apply_ops`: Verifies `expected_version` (409 conflict guard), generates shared `group_id`, clears undone ops (`seq > current_seq`) from `timeline_ops`, records ops and inverses, bumps `version`, updates `data`, and saves snapshot when crossing `TIMELINE_SNAPSHOT_INTERVAL`.
+    - `TimelineService.undo`: Reverts all operations sharing the latest group's `group_id` in reverse sequence order, decrements `current_seq`, and bumps `version`.
+    - `TimelineService.redo`: Reapplies all operations sharing the next undone group's `group_id` in forward sequence order, advances `current_seq`, and bumps `version`.
+    - `TimelineService.restore_version`: Restores pinned snapshot from `timeline_versions` and bumps version.
+  - Exported `TimelineService`, `TimelineNotFoundError`, and `TimelineVersionConflictError` in `app/services/__init__.py`.
+  - `tests/test_timeline_service.py`:
+    - `test_create_timeline_and_initial_snapshot`: Verifies initial creation and snapshot.
+    - `test_grouped_apply_and_single_step_undo`: Verifies that multi-op agent actions sharing one `group_id` are undone in a single undo step and redone in a single redo step.
+    - `test_redo_stack_cleared_on_new_op`: Verifies that a new edit after an undo purges future ops from `timeline_ops`.
+    - `test_optimistic_concurrency_409_conflict`: Verifies version mismatch raises `TimelineVersionConflictError` on apply, undo, and redo.
+    - `test_timeline_snapshots_every_n_ops`: Verifies snapshots are created every N ops and can be restored.
+    - `test_timeline_state_always_matches_log`: Verifies that replaying all ops from `1..current_seq` matches the current timeline state identically.
+    - `test_timeline_not_found_raises`: Verifies error handling on missing timeline IDs.
+- **Quality Checks**:
+  - `pytest tests/test_timeline_service.py`: 7 passed in 3.71s.
+  - Full `pytest` suite: 121 passed across all 16 test modules in 111.24s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests`: Success, 0 issues across 66 source files.
+
+### Session: Task T5 Timeline API (Phase 3 Timeline Core)
+- **Objective**: Implement REST API endpoints for Timeline lifecycle and editing (`POST /api/timelines`, `GET /api/timelines/{id}`, `POST /api/timelines/{id}/ops`, `POST /api/timelines/{id}/undo`, `POST /api/timelines/{id}/redo`, `GET /api/timelines/{id}/history`, `POST /api/timelines/{id}/restore/{version}`), verify optimistic concurrency (HTTP 409) and error handling, update OpenAPI schema specification, create automated bash and python curl walkthroughs, document curl examples in README, and achieve 100% test pass rate.
+- **Implemented**:
+  - `app/api/v1/endpoints/timelines.py`:
+    - `POST /api/timelines`: Creates timeline from video record with duration extraction fallback.
+    - `GET /api/timelines/{id}`: Returns active rehydrated timeline schema.
+    - `POST /api/timelines/{id}/ops`: Batch applies operations, enforces expected version (HTTP 409 on conflict), purges undone redo stack, records ops and snapshots.
+    - `POST /api/timelines/{id}/undo`: Reverts latest grouped operations in reverse sequence order.
+    - `POST /api/timelines/{id}/redo`: Reapplies next undone operation group in forward sequence order.
+    - `GET /api/timelines/{id}/history`: Returns complete operation log (`TimelineOpResponse`) and pinned snapshots (`TimelineVersionResponse`).
+    - `POST /api/timelines/{id}/restore/{version}`: Restores pinned version snapshot from `timeline_versions`.
+  - `app/schemas/timeline_api.py`: Typed request and response models (`TimelineCreateRequest`, `TimelineOpsRequest`, `TimelineUndoRequest`, `TimelineRedoRequest`, `TimelineRestoreRequest`, `TimelineHistoryResponse`, `TimelineOpResponse`, `TimelineVersionResponse`).
+  - `app/main.py`: Registered custom exception handlers for `TimelineVersionConflictError` (HTTP 409), `TimelineNotFoundError` (HTTP 404), and `TimelineOperationError` (HTTP 422).
+  - `openapi.json`: Regenerated complete OpenAPI schema (expanded from 42KB to 83.7KB) containing all timeline routes, models, and error structures.
+  - `scripts/curl_walkthrough.py` & `scripts/curl_walkthrough.sh`: Automated curl walkthrough script covering video lookup, creation, retrieval, batch edits, 409 conflict validation, undo, redo, history log inspection, and version restoration.
+  - `README.md`: Added Section 10 "Timeline Multi-Track Editing & Versioning API (Phase 3 Core)" with clear, copy-pasteable curl examples for every timeline endpoint.
+  - `tests/test_timeline_api.py`: 5 comprehensive integration tests covering create (201 & 404), get (200 & 404), batch ops & concurrency conflict (200, 409, 422), grouped undo & redo (200 & 409), history and version restoration (200, 409, 422).
+- **Quality Checks**:
+  - Automated walkthrough `python scripts/curl_walkthrough.py`: Executed all 8 curl steps cleanly against running uvicorn instance (all 200/201/409 codes verified).
+  - `pytest tests/test_timeline_api.py`: 5 passed in 4.80s.
+  - Full `pytest` test suite: 126 passed across all 17 test modules in 93.78s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests scripts`: Success, 0 issues across 70 source files.
+
+### Session: Task T6 Performance: Benchmark Script (Phase 3 Timeline Core)
+- **Objective**: Optimize Timeline operation engine and API throughput to guarantee 500 operations apply in under 1.0s in the engine, under 2.0s through a single batch API call, and other concurrent requests remain responsive without stalling.
+- **Implemented**:
+  - `app/services/timeline_engine.py`:
+    - Replaced expensive O(N^2) full-tree JSON model dumping/revalidating (`Timeline.model_dump(mode="json")` + `Timeline.model_validate()`) with structural sharing copying: tracks are copied with fresh item lists, and untouched item objects are preserved without mutation.
+    - Updated `ripple_delete` and `ripple_insert` to produce new item copies during shifting rather than in-place mutations, guaranteeing 100% pure immutability of the source timeline instance.
+    - Reduced 500-op sequential engine application time from 2.79s down to ~0.43s (> 6x speedup, beating the < 1.0s target).
+  - `app/core/database.py`:
+    - Enabled SQLite Write-Ahead Logging (`PRAGMA journal_mode=WAL`), `PRAGMA synchronous=NORMAL`, and `PRAGMA busy_timeout=5000` via SQLAlchemy connect event listener to guarantee readers and writers never block each other during heavy batch transactions.
+  - `scripts/benchmark_timeline.py`:
+    - Runnable standalone benchmark measuring:
+      1. Engine throughput: 500 ops applied sequentially through `apply()` (~0.43s, > 1100 ops/sec, PASS).
+      2. Batch API latency: 500 ops applied via `POST /api/timelines/{id}/ops` (~0.87s on live server / ~0.90s in TestClient, > 550 ops/sec, PASS).
+      3. Concurrent server responsiveness: probe requests during the batch executing concurrently and measuring latency (all 200 OK, max latency < 200ms on live HTTP, PASS).
+  - `tests/test_timeline_benchmark.py`:
+    - `test_engine_500_ops_under_one_second`: Asserts `apply()` with 500 ops finishes in < 1.0s.
+    - `test_batch_api_500_ops_under_two_seconds`: Asserts `POST /api/timelines/{id}/ops` with 500 ops finishes in < 2.0s.
+    - `test_concurrent_requests_remain_responsive`: Asserts concurrent probes to `/health` and `/api/timelines/{id}` all succeed with 200 OK during batch execution.
+- **Quality Checks**:
+  - `python scripts/benchmark_timeline.py`:
+    - Engine 500 Ops: 0.4357s [PASS (< 1.0s)]
+    - Batch API 500 Ops: 0.8976s [PASS (< 2.0s)]
+    - Server Responsive: 48.74ms avg [PASS]
+  - `pytest tests/test_timeline_benchmark.py`: 3 passed in 6.15s.
+  - Full `pytest` test suite: 129 passed across all 18 test modules in 93.62s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests scripts`: Success, 0 issues across 72 source files.
+
+### Session: Task T7 Clips to Timelines (Phase 3 Timeline Core)
+- **Objective**: Implement conversion of existing draft clips and EditSpecs into multi-track Timelines (`GET /api/clips/{id}/timeline` and `POST /api/clips/{id}/timeline`), link clips to timelines via `timeline_id`, remap cut segments, color grades, transitions, and transcript words into timeline tracks and items, and ensure all draft clips open as valid timelines.
+- **Implemented**:
+  - `app/models/clip.py`: Added `timeline_id: Mapped[str | None]` column referencing `timelines.id` with `ondelete="SET NULL"` and `timeline` relationship.
+  - `alembic/versions/8d300a9100d9_add_timeline_id_to_clips.py`: Added and applied migration creating `timeline_id` column and index on `clips` table.
+  - `app/schemas/clip.py`: Added `timeline_id: str | None = None` to `ClipResponse`.
+  - `app/services/clip_converter.py`:
+    - `ClipConverter.clip_to_timeline` & `ClipConverter.edit_spec_to_timeline`:
+      - Converts EditSpec `cuts` into seamless, sequenced items on a `TrackType.VIDEO` track with integer millisecond coordinates (`src_in`, `src_out`, `start`).
+      - Preserves color grade (`GradeSpec`) and transitions (`ItemTransition`) on cut items.
+      - If captions are enabled, generates a `TrackType.CAPTION` track and remaps word timestamps from the video's `Transcript` relative to cut boundaries without overlapping items.
+      - Stores clip metadata (`clip_id`, `title`, `aspect_ratio`, `reframe`, `hook`, `reason`, `score`) in `timeline.metadata`.
+  - `app/services/timeline_service.py`:
+    - Updated `create_timeline` to accept optional `metadata`.
+    - Added `TimelineService.open_clip_timeline(db, clip_id, force_recreate=False)`: opens existing linked timeline if available or converts EditSpec into a newly persisted Timeline linked to `clip.timeline_id`.
+    - Added `TimelineService.convert_all_draft_clips(db, video_id=None)`: batch converts all unlinked draft clips.
+  - `app/api/v1/endpoints/clips.py`:
+    - `GET /api/clips/{clip_id}/timeline`: Opens or converts draft clip into a multi-track Timeline.
+    - `POST /api/clips/{clip_id}/timeline`: Force re-converts draft clip into a fresh Timeline.
+  - `openapi.json`: Regenerated complete OpenAPI schema with `/{clip_id}/timeline` endpoints.
+  - `tests/test_clip_to_timeline.py`: Comprehensive test suite with 7 integration tests:
+    - `test_convert_single_cut_draft_clip_to_timeline`: Single cut duration and metadata mapping.
+    - `test_convert_multi_cut_clip_with_grades_and_transitions`: Multi-cut sequencing, transitions, and grade mapping.
+    - `test_convert_clip_with_transcript_word_timestamps`: Transcript word timestamp remapping to playhead without overlap.
+    - `test_get_clip_timeline_endpoint`: End-to-end `GET /api/clips/{id}/timeline` linking and subsequent editing via Timeline API.
+    - `test_post_clip_timeline_force_recreate`: `POST /api/clips/{id}/timeline` force re-conversion.
+    - `test_batch_convert_all_draft_clips`: Batch conversion of multiple draft clips.
+    - `test_clip_not_found_returns_404`: Proper 404 response on missing clip.
+- **Quality Checks**:
+  - `pytest tests/test_clip_to_timeline.py`: 7 passed in 4.32s.
+  - Full `pytest` test suite: 136 passed across all 19 test modules in 90.26s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests scripts`: Success, 0 issues across 74 source files.
+
+### Session: Phase 4 Render from the Timeline (R1, R2, R3, R4)
+- **Objective**: Complete Phase 4 end-to-end:
+  - **R1 Proxies and UI assets**: Celery task creating 360p proxy, thumbnail strip, and waveform peaks JSON; endpoints for proxy, thumbnails, and waveform.
+  - **R2 Timeline-to-FFmpeg compiler**: Multi-track video and overlay compositing, audio mix, reusing reframe, grade, transition, and ASS caption code.
+  - **R3 Render task**: Celery task to render active or pinned timeline versions with progress reporting and cancellation support; render/download/cancel endpoints.
+  - **R4 Preview frame**: Endpoint `GET /api/timelines/{id}/frame?t=` rendering a frame directly from the timeline filter graph.
+- **Implemented**:
+  - `app/config.py`: Added `PROXY_DIR: Path = Path("./data/proxies")`.
+  - `app/services/asset_service.py`: Generates 360p `proxy.mp4`, thumbnail strip `strip.jpg`, individual thumbs, and audio peaks `waveform.json` (100 peaks per min/max segment).
+  - `app/tasks/asset_task.py`: Created `generate_assets_task` Celery task.
+  - `app/tasks/celery_app.py`: Registered `asset_task` and `timeline_render_task`.
+  - `app/schemas/video.py`: Added `VideoAssetsResponse`.
+  - `app/api/v1/endpoints/videos.py`: Enqueues `generate_assets_task` upon upload; exposed `POST /{id}/assets`, `GET /{id}/assets`, `GET /{id}/proxy`, `GET /{id}/waveform`, `GET /{id}/thumbnails/strip`, `GET /{id}/thumbnails/{filename}`; asset cleanup on video deletion.
+  - `app/services/timeline_compiler.py`:
+    - Multi-track timeline-to-FFmpeg filtergraph compiler (`TimelineCompiler`).
+    - Handled video cuts, transitions (`xfade`/`acrossfade`), reframe (crop/blur-bg), grading (`GradeSpec`), overlays (`overlay` with `between(t,...)`), audio tracks and `amix`.
+    - Integrated ASS subtitle generation (`build_ass_subtitles`) with `ass` filtergraph overlay.
+    - Added `include_audio` toggle to omit audio filter nodes during single-frame extractions (`extract_frame`).
+  - `app/services/job_service.py`: Added `cancel_job` and `is_job_cancelled`.
+  - `app/api/v1/endpoints/jobs.py`: Added `POST /{job_id}/cancel`.
+  - `app/tasks/timeline_render_task.py`: Background Celery task `render_timeline_task` supporting active or pinned snapshot version renders, real-time progress updates (10-95%), and cooperative cancel checks.
+  - `app/api/v1/endpoints/timelines.py`: Added `POST /{id}/render`, `POST /{id}/cancel`, `GET /{id}/download`, and `GET /{id}/frame?t=`.
+  - `openapi.json`: Regenerated complete schema incorporating all new assets, timeline render, and preview frame endpoints.
+  - `tests/test_assets.py`: 4 integration tests passed.
+  - `tests/test_timeline_compiler.py`: 3 golden tests passed (single track, two-track overlay, captions).
+  - `tests/test_timeline_render.py`: 3 integration tests passed (active & pinned renders, API render/download/cancel, preview frame changes with grade).
+- **Quality Checks**:
+  - Full `pytest` suite: 146 passed across all 23 test modules in 130.66s.
+  - `ruff check .`: All checks passed.
+  - `mypy app tests scripts`: Success, 0 issues across 81 source files.
+
+
+
+
+
+
+

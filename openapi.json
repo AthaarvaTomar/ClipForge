@@ -1,0 +1,3876 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ClipForge AI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/videos": {
+      "post": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Streamed upload and probe a video",
+        "operationId": "upload_video_api_videos_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_video_api_videos_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "List all videos",
+        "operationId": "list_videos_api_videos_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get video details",
+        "operationId": "get_video_api_videos__video_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Delete a video and its file",
+        "operationId": "delete_video_api_videos__video_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Delete Video Api Videos  Video Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/assets": {
+      "post": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Enqueue video asset generation (proxy, thumbnails, waveform)",
+        "description": "Enqueue background generation of 360p proxy, thumbnails strip, and waveform peaks.",
+        "operationId": "create_video_assets_api_videos__video_id__assets_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Force regeneration even if assets exist",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "Force regeneration even if assets exist"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get video asset status, URLs, and manifest",
+        "description": "Return status and URLs for proxy video, thumbnail strip, and waveform peaks.",
+        "operationId": "get_video_assets_api_videos__video_id__assets_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoAssetsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/proxy": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Stream 360p video proxy for editor playback",
+        "description": "Return the lightweight 360p proxy MP4 video.",
+        "operationId": "get_video_proxy_api_videos__video_id__proxy_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/waveform": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get audio waveform peaks JSON",
+        "description": "Return normalised audio peaks JSON for timeline waveform visualization.",
+        "operationId": "get_video_waveform_api_videos__video_id__waveform_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/thumbnails/strip": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get tiled horizontal thumbnail strip",
+        "description": "Return the horizontally tiled thumbnail strip image.",
+        "operationId": "get_video_thumbnail_strip_api_videos__video_id__thumbnails_strip_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/thumbnails": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get thumbnail strip or list",
+        "description": "Alias for /thumbnails/strip returning the tiled thumbnail strip.",
+        "operationId": "get_video_thumbnails_api_videos__video_id__thumbnails_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/thumbnails/{filename}": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Get individual thumbnail image",
+        "description": "Return an individual thumbnail image from the thumbnails directory.",
+        "operationId": "get_video_thumbnail_frame_api_videos__video_id__thumbnails__filename__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/dummy": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Launch a dummy task simulating progress 0 to 100",
+        "description": "Create a dummy background task and dispatch to Celery.",
+        "operationId": "create_dummy_job_api_jobs_dummy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DummyJobRequest",
+                "default": {
+                  "steps": 5,
+                  "delay_seconds": 0.01
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Get job status and progress",
+        "description": "Fetch status and progress percentage for a background job.",
+        "operationId": "get_job_status_api_jobs__job_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Cancel a running or pending background job",
+        "description": "Cancel a background job by ID.",
+        "operationId": "cancel_job_api_jobs__job_id__cancel_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transcripts/{video_id}": {
+      "post": {
+        "tags": [
+          "Transcripts"
+        ],
+        "summary": "Enqueue a transcription job for a video",
+        "description": "Validate video existence, create a transcription job, and enqueue task.",
+        "operationId": "create_transcription_job_api_transcripts__video_id__post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Transcripts"
+        ],
+        "summary": "Get transcript with word-level timestamps for a video",
+        "description": "Fetch the transcript and word timestamps for a specific video.",
+        "operationId": "get_transcript_api_transcripts__video_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/highlights/{video_id}": {
+      "post": {
+        "tags": [
+          "Highlights"
+        ],
+        "summary": "Enqueue a highlight detection job for a video",
+        "description": "Validate video and transcript, create a highlight detection job, and enqueue Celery task.",
+        "operationId": "create_highlights_job_api_highlights__video_id__post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Highlights"
+        ],
+        "summary": "Get all detected draft clips for a video",
+        "description": "Fetch all draft clips created for the given video.",
+        "operationId": "get_video_highlights_api_highlights__video_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips": {
+      "post": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Create a new clip with EditSpec",
+        "description": "Create a new draft clip configured with validated EditSpec.",
+        "operationId": "create_clip_api_clips_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClipCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "List clips",
+        "description": "List clips with optional filtering by video_id and status.",
+        "operationId": "list_clips_api_clips_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter clips by video ID",
+              "title": "Video Id"
+            },
+            "description": "Filter clips by video ID"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            },
+            "description": "Filter by status"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Items to skip",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Items to skip"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/{clip_id}": {
+      "get": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Get clip by ID",
+        "description": "Retrieve metadata and EditSpec for a specific clip.",
+        "operationId": "get_clip_api_clips__clip_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Update clip title, times, or EditSpec",
+        "description": "Update an existing clip's EditSpec, title, times, or status.",
+        "operationId": "update_clip_api_clips__clip_id__patch",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClipUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Delete a clip",
+        "description": "Delete a clip record and its associated rendered output file if present.",
+        "operationId": "delete_clip_api_clips__clip_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "title": "Response Delete Clip Api Clips  Clip Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/{clip_id}/timeline": {
+      "get": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Open or convert draft clip into a multi-track Timeline",
+        "description": "Open or convert a draft clip and its EditSpec into a valid multi-track Timeline (Task T7).\n\n- If a timeline has already been created for this clip, returns the active timeline.\n- Otherwise, automatically converts cuts, grade, transitions, and captions into tracks/items,\n  persists the timeline, links clip.timeline_id, and returns the Timeline.",
+        "operationId": "get_clip_timeline_api_clips__clip_id__timeline_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Force re-convert draft clip into a fresh Timeline",
+        "description": "Force re-convert a draft clip's current EditSpec into a fresh Timeline (Task T7).",
+        "operationId": "convert_clip_timeline_api_clips__clip_id__timeline_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/{clip_id}/render": {
+      "post": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Enqueue clip render job",
+        "description": "Dispatch background rendering task for a clip.",
+        "operationId": "render_clip_api_clips__clip_id__render_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/{clip_id}/download": {
+      "get": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Download rendered clip MP4",
+        "description": "Download the completed MP4 video file for a clip.",
+        "operationId": "download_clip_api_clips__clip_id__download_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/{clip_id}/preview-frame": {
+      "get": {
+        "tags": [
+          "Clips"
+        ],
+        "summary": "Extract preview frame from clip",
+        "description": "Extract a single JPEG frame at the specified offset.",
+        "operationId": "get_preview_frame_api_clips__clip_id__preview_frame_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clip Id"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0.0,
+              "description": "Offset in seconds from clip start",
+              "default": 0.5,
+              "title": "Time"
+            },
+            "description": "Offset in seconds from clip start"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/presets": {
+      "get": {
+        "tags": [
+          "Presets"
+        ],
+        "summary": "List editing presets",
+        "description": "Retrieve available color grades, transitions, caption animations, and fonts.",
+        "operationId": "get_presets_api_presets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/timelines": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Create a new timeline from a video",
+        "description": "Create a new timeline initialized for a source video.\n\nIf source_duration_ms is not provided, extracts duration from the source video if available.",
+        "operationId": "create_timeline_api_timelines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/timelines/{id}": {
+      "get": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Get timeline by ID",
+        "description": "Fetch the latest active state of a timeline by its ID.",
+        "operationId": "get_timeline_api_timelines__id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/ops": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Apply a batch of operations",
+        "description": "Apply a batch of timeline operations sharing a single group_id.\n\n- Validates optimistic concurrency against expected_version (409 on mismatch).\n- Automatically purges redo stack if in an undone state.\n- Creates snapshots every N ops.",
+        "operationId": "apply_ops_api_timelines__id__ops_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineOpsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/undo": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Undo the latest group of operations",
+        "description": "Undo the most recent group of operations in reverse order.",
+        "operationId": "undo_api_timelines__id__undo_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineUndoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/redo": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Redo the next undone group of operations",
+        "description": "Redo the next undone group of operations in forward order.",
+        "operationId": "redo_api_timelines__id__redo_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineRedoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/history": {
+      "get": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Get timeline operations history and snapshot versions",
+        "description": "Retrieve full operation history and snapshot versions for a timeline.",
+        "operationId": "get_history_api_timelines__id__history_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/restore/{version}": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Restore a pinned timeline snapshot version",
+        "description": "Restore a pinned snapshot version from timeline_versions.",
+        "operationId": "restore_version_api_timelines__id__restore__version__post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Snapshot version number to restore",
+              "title": "Version"
+            },
+            "description": "Snapshot version number to restore"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineRestoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/render": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Enqueue timeline render job",
+        "description": "Dispatch background rendering task for a timeline (pinned version or latest).",
+        "operationId": "render_timeline_api_timelines__id__render_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional pinned version",
+              "title": "Version"
+            },
+            "description": "Optional pinned version"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Cancel active timeline render job",
+        "description": "Cancel an active rendering job for a timeline.",
+        "operationId": "cancel_timeline_render_api_timelines__id__cancel_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          },
+          {
+            "name": "job_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional specific job ID",
+              "title": "Job Id"
+            },
+            "description": "Optional specific job ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "title": "Response Cancel Timeline Render Api Timelines  Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/download": {
+      "get": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Download rendered timeline video file",
+        "description": "Download the completed MP4 video file for a rendered timeline.",
+        "operationId": "download_timeline_api_timelines__id__download_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional pinned version",
+              "title": "Version"
+            },
+            "description": "Optional pinned version"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timelines/{id}/frame": {
+      "get": {
+        "tags": [
+          "Timelines"
+        ],
+        "summary": "Render preview frame from timeline at time t",
+        "description": "Render a single JPEG preview frame evaluated from the timeline filters and tracks.",
+        "operationId": "get_timeline_frame_api_timelines__id__frame_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Timeline ID",
+              "title": "Id"
+            },
+            "description": "Timeline ID"
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0.0,
+              "description": "Offset in seconds from timeline start",
+              "default": 0.0,
+              "title": "T"
+            },
+            "description": "Offset in seconds from timeline start"
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Alias for t",
+              "title": "Time"
+            },
+            "description": "Alias for t"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional pinned version",
+              "title": "Version"
+            },
+            "description": "Optional pinned version"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Root  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnimationPreset": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique identifier matching EditSpec.captions.animation"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Human-readable title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Visual animation pacing and style description"
+          },
+          "recommended_font_size": {
+            "type": "integer",
+            "title": "Recommended Font Size",
+            "description": "Optimal font size for this animation",
+            "default": 36
+          },
+          "recommended_position": {
+            "type": "string",
+            "title": "Recommended Position",
+            "description": "Recommended screen placement",
+            "default": "bottom"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "title": "AnimationPreset",
+        "description": "Caption animation preset configuration."
+      },
+      "Body_upload_video_api_videos_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_video_api_videos_post"
+      },
+      "CaptionSpec": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether to burn captions into the clip",
+            "default": true
+          },
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "description": "Preset caption style (e.g. bold-highlight, clean, karaoke)",
+            "default": "bold-highlight"
+          },
+          "font_name": {
+            "type": "string",
+            "title": "Font Name",
+            "description": "Font family name",
+            "default": "Arial"
+          },
+          "font_size": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 12.0,
+            "title": "Font Size",
+            "description": "Font size in pt",
+            "default": 36
+          },
+          "primary_color": {
+            "type": "string",
+            "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+            "title": "Primary Color",
+            "description": "Base text hex color (e.g. #FFFFFF)",
+            "default": "#FFFFFF"
+          },
+          "highlight_color": {
+            "type": "string",
+            "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+            "title": "Highlight Color",
+            "description": "Active spoken word highlight hex color (e.g. #00FFCC)",
+            "default": "#00FFCC"
+          },
+          "animation": {
+            "type": "string",
+            "enum": [
+              "highlight",
+              "pop",
+              "fade",
+              "bounce",
+              "none"
+            ],
+            "title": "Animation",
+            "description": "Subtitle animation style",
+            "default": "highlight"
+          },
+          "position": {
+            "type": "string",
+            "enum": [
+              "bottom",
+              "middle",
+              "top"
+            ],
+            "title": "Position",
+            "description": "Vertical caption placement",
+            "default": "bottom"
+          }
+        },
+        "type": "object",
+        "title": "CaptionSpec",
+        "description": "Subtitle and burned-in caption styling."
+      },
+      "ClipCreate": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id",
+            "description": "ID of the source video"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "description": "Title of the clip"
+          },
+          "edit_spec": {
+            "$ref": "#/components/schemas/EditSpec",
+            "description": "Edit specifications including cuts, reframing, and captions"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time",
+            "description": "Optional clip start time (derived from cuts if omitted)"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time",
+            "description": "Optional clip end time (derived from cuts if omitted)"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Initial clip status",
+            "default": "DRAFT"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "title",
+          "edit_spec"
+        ],
+        "title": "ClipCreate",
+        "description": "Schema for creating a new clip with validated EditSpec."
+      },
+      "ClipListResponse": {
+        "properties": {
+          "video_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Id"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/ClipResponse"
+            },
+            "type": "array",
+            "title": "Clips"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "clips"
+        ],
+        "title": "ClipListResponse",
+        "description": "Schema for listing multiple clips."
+      },
+      "ClipResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Title"
+          },
+          "start_time": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "End Time"
+          },
+          "edit_spec": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Edit Spec"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "DRAFT"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          },
+          "timeline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeline Id"
+          },
+          "output_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Path"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "start_time",
+          "end_time",
+          "id",
+          "video_id"
+        ],
+        "title": "ClipResponse",
+        "description": "Schema for clip response."
+      },
+      "ClipUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "edit_spec": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "QUEUED",
+                  "RENDERING",
+                  "DONE",
+                  "FAILED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "title": "ClipUpdate",
+        "description": "Schema for updating an existing clip."
+      },
+      "CutSegment": {
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start",
+            "description": "Start timestamp in seconds"
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "description": "End timestamp in seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "CutSegment",
+        "description": "A segment of the source video to include in the clip."
+      },
+      "DummyJobRequest": {
+        "properties": {
+          "steps": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "default": 5
+          },
+          "delay_seconds": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Delay Seconds",
+            "default": 0.01
+          }
+        },
+        "type": "object",
+        "title": "DummyJobRequest"
+      },
+      "EditSpec": {
+        "properties": {
+          "cuts": {
+            "items": {
+              "$ref": "#/components/schemas/CutSegment"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Cuts",
+            "description": "List of ordered, non-overlapping cut segments"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": [
+              "9:16",
+              "16:9",
+              "1:1",
+              "4:5"
+            ],
+            "title": "Aspect Ratio",
+            "description": "Target aspect ratio",
+            "default": "9:16"
+          },
+          "reframe": {
+            "$ref": "#/components/schemas/ReframeSpec"
+          },
+          "captions": {
+            "$ref": "#/components/schemas/CaptionSpec"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/GradeSpec"
+          },
+          "transition": {
+            "$ref": "#/components/schemas/TransitionSpec"
+          },
+          "hook": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hook",
+            "description": "Opening hook text"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Reason this clip was selected"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Virality score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cuts"
+        ],
+        "title": "EditSpec",
+        "description": "Full specification for editing, reframing, and rendering a video clip."
+      },
+      "FontPreset": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Identifier for font selection"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Font family name for ASS and CSS rendering"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Typographic family category (sans-serif, display, etc.)"
+          },
+          "weights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weights",
+            "description": "Available font weights"
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
+            "description": "Whether font is pre-installed on standard OS",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category"
+        ],
+        "title": "FontPreset",
+        "description": "Typography font preset configuration."
+      },
+      "GradePreset": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique identifier matching EditSpec.grade.preset"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Human-readable title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Detailed visual aesthetic description"
+          },
+          "brightness": {
+            "type": "number",
+            "title": "Brightness",
+            "description": "Default brightness offset",
+            "default": 0.0
+          },
+          "contrast": {
+            "type": "number",
+            "title": "Contrast",
+            "description": "Default contrast multiplier",
+            "default": 1.0
+          },
+          "saturation": {
+            "type": "number",
+            "title": "Saturation",
+            "description": "Default saturation multiplier",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "title": "GradePreset",
+        "description": "Color grading preset configuration."
+      },
+      "GradeSpec": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "none",
+              "cinematic",
+              "warm",
+              "vibrant",
+              "cool",
+              "bw"
+            ],
+            "title": "Preset",
+            "description": "Color grade preset",
+            "default": "none"
+          },
+          "brightness": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Brightness",
+            "description": "Brightness adjustment",
+            "default": 0.0
+          },
+          "contrast": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Contrast",
+            "description": "Contrast adjustment",
+            "default": 1.0
+          },
+          "saturation": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Saturation",
+            "description": "Saturation multiplier",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "title": "GradeSpec",
+        "description": "Color grading and visual adjustment parameters."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Item": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique item identifier"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source",
+            "description": "Source media reference (e.g. video_id or asset URI)"
+          },
+          "src_in": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Src In",
+            "description": "In-point in the source media in integer milliseconds"
+          },
+          "src_out": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Src Out",
+            "description": "Out-point in the source media in integer milliseconds"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start",
+            "description": "Start position on the track timeline in integer milliseconds"
+          },
+          "effects": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Effects",
+            "description": "Applied visual or audio filter/effects parameters"
+          },
+          "volume": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Volume",
+            "description": "Audio gain multiplier (1.0 = unity gain)",
+            "default": 1.0
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GradeSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Color grading adjustments"
+          },
+          "transition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemTransition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Item transition effect"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Text content for caption items"
+          },
+          "caption_style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaptionSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional burned-in caption styling override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "src_in",
+          "src_out",
+          "start"
+        ],
+        "title": "Item",
+        "description": "A media segment placed onto a timeline track.\n\nAll time coordinates are represented as integer milliseconds."
+      },
+      "ItemTransition": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fade",
+              "wipeleft",
+              "crossfade",
+              "slideup"
+            ],
+            "title": "Type",
+            "description": "Transition type",
+            "default": "none"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "description": "Transition duration in integer milliseconds",
+            "default": 500
+          }
+        },
+        "type": "object",
+        "title": "ItemTransition",
+        "description": "Transition applied at the start/end of a timeline item."
+      },
+      "JobResponse": {
+        "properties": {
+          "job_type": {
+            "type": "string",
+            "title": "Job Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "PENDING"
+          },
+          "progress": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Progress",
+            "default": 0
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "result_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Data"
+          },
+          "video_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Id"
+          },
+          "clip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Id"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_type",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "JobResponse"
+      },
+      "PresetsResponse": {
+        "properties": {
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/GradePreset"
+            },
+            "type": "array",
+            "title": "Grades",
+            "description": "Available color grades"
+          },
+          "transitions": {
+            "items": {
+              "$ref": "#/components/schemas/TransitionPreset"
+            },
+            "type": "array",
+            "title": "Transitions",
+            "description": "Available transitions"
+          },
+          "animations": {
+            "items": {
+              "$ref": "#/components/schemas/AnimationPreset"
+            },
+            "type": "array",
+            "title": "Animations",
+            "description": "Available caption animations"
+          },
+          "fonts": {
+            "items": {
+              "$ref": "#/components/schemas/FontPreset"
+            },
+            "type": "array",
+            "title": "Fonts",
+            "description": "Available subtitle fonts"
+          }
+        },
+        "type": "object",
+        "title": "PresetsResponse",
+        "description": "Aggregated preset listings returned by GET /api/presets."
+      },
+      "ReframeSpec": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "crop",
+              "blur-bg"
+            ],
+            "title": "Strategy",
+            "description": "Reframing strategy: 'crop' or 'blur-bg'",
+            "default": "crop"
+          },
+          "crop_x_offset": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Crop X Offset",
+            "description": "Horizontal crop framing offset (-1.0 left to 1.0 right)",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "ReframeSpec",
+        "description": "Aspect ratio reframing options."
+      },
+      "Timeline": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique timeline identifier"
+          },
+          "video_id": {
+            "type": "string",
+            "title": "Video Id",
+            "description": "Source video reference ID"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version",
+            "description": "Monotonically increasing version number for optimistic concurrency",
+            "default": 1
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/Track"
+            },
+            "type": "array",
+            "title": "Tracks",
+            "description": "List of multi-track lanes (video, audio, overlay, caption)"
+          },
+          "source_duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Duration Ms",
+            "description": "Optional total duration of source video in milliseconds for validation"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "description": "Auxiliary timeline metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id"
+        ],
+        "title": "Timeline",
+        "description": "Full multi-track timeline model.\n\nRoot schema for all video editing operations, undo/redo logs, and renders.\nAll time measurements are in integer milliseconds."
+      },
+      "TimelineCreateRequest": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id",
+            "description": "Source video ID to initialize the timeline for"
+          },
+          "tracks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Track"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracks",
+            "description": "Optional initial tracks. If omitted, starts with an empty track list."
+          },
+          "source_duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Duration Ms",
+            "description": "Optional total duration in milliseconds. Defaults to source video duration if available."
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id"
+        ],
+        "title": "TimelineCreateRequest",
+        "description": "Payload to create a new timeline from a source video."
+      },
+      "TimelineHistoryResponse": {
+        "properties": {
+          "timeline_id": {
+            "type": "string",
+            "title": "Timeline Id"
+          },
+          "current_version": {
+            "type": "integer",
+            "title": "Current Version"
+          },
+          "current_seq": {
+            "type": "integer",
+            "title": "Current Seq"
+          },
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineOpResponse"
+            },
+            "type": "array",
+            "title": "Ops"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineVersionResponse"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timeline_id",
+          "current_version",
+          "current_seq",
+          "ops",
+          "versions"
+        ],
+        "title": "TimelineHistoryResponse",
+        "description": "Complete operation history and snapshots for a timeline."
+      },
+      "TimelineOpResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "op": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Op"
+          },
+          "inverse_op": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inverse Op"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "seq",
+          "group_id",
+          "op",
+          "inverse_op",
+          "actor",
+          "created_at"
+        ],
+        "title": "TimelineOpResponse",
+        "description": "Representation of an operation stored in timeline_ops."
+      },
+      "TimelineOpsRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "description": "Client's current timeline version for optimistic concurrency check"
+          },
+          "ops": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Ops",
+            "description": "List of timeline operations to apply in order"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor",
+            "description": "Actor applying the operations ('user' or 'agent')",
+            "default": "user"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "Optional group ID to group these operations. Generated if omitted."
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_version",
+          "ops"
+        ],
+        "title": "TimelineOpsRequest",
+        "description": "Payload to apply a batch of operations sharing one group_id."
+      },
+      "TimelineRedoRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "description": "Client's current timeline version for optimistic concurrency check"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "title": "TimelineRedoRequest",
+        "description": "Payload to redo the next undone group of operations."
+      },
+      "TimelineRestoreRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "description": "Client's current timeline version for optimistic concurrency check"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "title": "TimelineRestoreRequest",
+        "description": "Payload to restore a specific snapshot version."
+      },
+      "TimelineUndoRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version",
+            "description": "Client's current timeline version for optimistic concurrency check"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "title": "TimelineUndoRequest",
+        "description": "Payload to undo the latest group of operations."
+      },
+      "TimelineVersionResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "created_at"
+        ],
+        "title": "TimelineVersionResponse",
+        "description": "Representation of a snapshot stored in timeline_versions."
+      },
+      "Track": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique track identifier"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TrackType",
+            "description": "Track type: video, audio, overlay, or caption"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Human-readable track label"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Ordered list of non-overlapping media items"
+          },
+          "muted": {
+            "type": "boolean",
+            "title": "Muted",
+            "description": "Whether this track is muted",
+            "default": false
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "description": "Whether track editing is locked",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Track",
+        "description": "A single lane of media items in a timeline."
+      },
+      "TrackType": {
+        "type": "string",
+        "enum": [
+          "video",
+          "audio",
+          "overlay",
+          "caption"
+        ],
+        "title": "TrackType",
+        "description": "Supported track types in a multi-track timeline."
+      },
+      "TranscriptResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/WordTimestamp"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "video_id",
+          "language",
+          "text",
+          "words",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TranscriptResponse"
+      },
+      "TransitionPreset": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique identifier matching EditSpec.transition.type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Human-readable title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Description of the scene transition effect"
+          },
+          "default_duration": {
+            "type": "number",
+            "title": "Default Duration",
+            "description": "Recommended duration in seconds",
+            "default": 0.5
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "title": "TransitionPreset",
+        "description": "Transition preset configuration."
+      },
+      "TransitionSpec": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fade",
+              "wipeleft",
+              "crossfade",
+              "slideup"
+            ],
+            "title": "Type",
+            "description": "Transition effect between cuts",
+            "default": "none"
+          },
+          "duration": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Duration",
+            "description": "Duration of transition in seconds",
+            "default": 0.5
+          }
+        },
+        "type": "object",
+        "title": "TransitionSpec",
+        "description": "Transition between multi-segment cuts."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VideoAssetsResponse": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "proxy_url": {
+            "type": "string",
+            "title": "Proxy Url"
+          },
+          "thumbnail_strip_url": {
+            "type": "string",
+            "title": "Thumbnail Strip Url"
+          },
+          "waveform_url": {
+            "type": "string",
+            "title": "Waveform Url"
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "ready",
+          "proxy_url",
+          "thumbnail_strip_url",
+          "waveform_url"
+        ],
+        "title": "VideoAssetsResponse"
+      },
+      "VideoListResponse": {
+        "properties": {
+          "videos": {
+            "items": {
+              "$ref": "#/components/schemas/VideoResponse"
+            },
+            "type": "array",
+            "title": "Videos"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "videos",
+          "total"
+        ],
+        "title": "VideoListResponse"
+      },
+      "VideoResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          },
+          "orientation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orientation"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "uploaded"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "id",
+          "file_path",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VideoResponse"
+      },
+      "WordTimestamp": {
+        "properties": {
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "start": {
+            "type": "number",
+            "title": "Start"
+          },
+          "end": {
+            "type": "number",
+            "title": "End"
+          },
+          "probability": {
+            "type": "number",
+            "title": "Probability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "word",
+          "start",
+          "end",
+          "probability"
+        ],
+        "title": "WordTimestamp"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}
