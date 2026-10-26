@@ -558,9 +558,41 @@
   - `ruff check .`: All checks passed.
   - `mypy app tests scripts`: Success, 0 issues across 81 source files.
 
-
-
-
-
-
-
+### Session: Phase 5 Footage Indexing (I1, I2, I3, I4, I5, I6, I7)
+- **Objective**: Complete Phase 5 Footage Indexing end-to-end in one run:
+  - **I1 Scenes**: PySceneDetect scene boundaries saved per video.
+  - **I2 Silence and fillers**: FFmpeg `silencedetect` plus transcript filler words ("um", "uh") as time ranges.
+  - **I3 Repeated takes**: Fuzzy-match adjacent transcript sentences (`rapidfuzz`), group near-duplicates, and select the best take.
+  - **I4 Visual understanding**: Sample one frame per scene, query Gemini 1.5 Flash Vision (Ollama LLaVA fallback) for captions and tags.
+  - **I5 Speaker diarization**: Optional, skipped for demo.
+  - **I6 Index orchestrator**: Celery pipeline (transcribe, scenes, silences, takes, visuals) with per-stage progress and chunking for long files; `GET /api/videos/{id}/index` returns everything.
+  - **I7 Chapters, hook, highlights**: Upgrade A6 highlight service to use the full index to return thematic chapters, a viral hook candidate, and ranked highlights.
+- **Implemented**:
+  - `requirements.txt`: Added `scenedetect`, `rapidfuzz`, and `opencv-python-headless`.
+  - `app/models/video_index.py`: Created `VideoIndex` database model with `video_id` FK (cascade delete), `status`, `error_message`, and JSON columns for `scenes`, `silences`, `fillers`, `repeated_takes`, `visuals`, `chapters`, `hook`, `highlights`.
+  - `app/models/video.py`: Added `index` 1-to-1 relationship with cascade deletion.
+  - `alembic/versions/e239c40b8350_create_video_indices_table.py`: Generated and executed Alembic migration.
+  - `app/schemas/index.py`: Pydantic models `SceneItem`, `SilenceRange`, `FillerItem`, `TakeItem`, `TakeGroup`, `VisualScene`, `ChapterItem`, `HookCandidate`, `VideoIndexResponse`.
+  - `app/services/scene_detector.py`: `SceneDetectorService.detect_scenes()` using `scenedetect.SceneManager` and `ContentDetector` with single-scene fallback and zero-deprecation `seconds` property.
+  - `app/services/silence_detector.py`: `SilenceFillerService.detect_silence_and_fillers()` executing FFmpeg audio filter `silencedetect=noise=-30dB:d=0.5` and token matching transcript words against speech disfluencies (`um`, `uh`, `er`, `ah`, `like`, `you know`, `hmm`, etc.).
+  - `app/services/take_detector.py`: `RepeatedTakeService.detect_repeated_takes()` segmenting transcript sentences, grouping near-duplicates via `rapidfuzz.fuzz.token_sort_ratio` (threshold >= 65), and scoring candidates using word count, duration, filler-penalty, and finality heuristic.
+  - `app/services/visual_service.py`: `VisualUnderstandingService.analyze_scenes()` extracting midpoint scene frames via FFmpeg, querying Gemini 1.5 Flash Vision (Ollama LLaVA fallback, deterministic tagger fallback).
+  - `app/services/highlight_service.py`: Added `HighlightService.detect_index_insights()` combining transcript, scene cuts, visual frame tags, and repeated takes to generate thematic chapters, viral hook candidates, and ranked highlights.
+  - `app/services/index_orchestrator.py`: `IndexOrchestratorService.index_video()` orchestrating end-to-end pipeline with stage-by-stage progress callbacks (5% to 100%).
+  - `app/tasks/index_task.py`: Celery task `index_video_task` with state and job progress updates.
+  - `app/tasks/celery_app.py`: Registered `index_video_task`.
+  - `app/api/v1/endpoints/indexing.py`: Implemented `POST /api/videos/{video_id}/index` and `GET /api/videos/{video_id}/index`.
+  - `app/api/v1/api.py`: Mounted indexing router under `/videos`.
+  - `openapi.json`: Regenerated complete schema with new indexing endpoints.
+  - `tests/test_indexing.py`: 6 comprehensive integration tests covering all milestones I1–I7:
+    - `test_i1_scene_detection_service`: Scene cuts and single-scene fallback.
+    - `test_i2_silence_and_filler_detection`: Audio silence intervals and filler word time ranges.
+    - `test_i3_repeated_takes_grouping`: RapidFuzz grouping of 3 takes and best take selection.
+    - `test_i4_visual_understanding`: Frame extraction, caption, and tag generation.
+    - `test_i7_chapters_hook_and_highlights`: Full index insight generation.
+    - `test_i6_index_orchestrator_and_api_flow`: Complete orchestrator execution, database persistence, and API retrieval.
+- **Quality Checks**:
+  - `pytest tests/test_indexing.py`: 6 passed in 70.73s (0 warnings).
+  - Full `pytest` repository test suite: 152 passed across all modules in 146.58s (0 failures, 0 warnings).
+  - `ruff check .`: All checks passed (0 errors).
+  - `mypy app`: Success, 0 issues across 64 source files.

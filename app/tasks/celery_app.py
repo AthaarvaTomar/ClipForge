@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.tasks.render_task",
         "app.tasks.asset_task",
         "app.tasks.timeline_render_task",
+        "app.tasks.index_task",
     ],
 )
 

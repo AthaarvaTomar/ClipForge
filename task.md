@@ -3,9 +3,26 @@
 > Feed ONLY this file (plus AGENTS.md) to the AI each session. Keep it to ~2 hours of work.
 
 ## Active Item
-<!-- Cleared: Phase 4 complete -->
+None. Phase 5 (Footage Indexing) completed.
 
 ## Completed in this session
+- [x] Phase 5: Footage Indexing (I1, I2, I3, I4, I5, I6, I7)
+  - [x] I1 Scenes: PySceneDetect scene boundaries saved per video. Done when: a test video returns correct scene cuts.
+  - [x] I2 Silence and fillers: FFmpeg silencedetect plus filler words ("um", "uh") from the transcript. Done when: silences and fillers return as time ranges.
+  - [x] I3 Repeated takes: fuzzy-match adjacent transcript sentences (rapidfuzz), group near-duplicates and mark the best take. Done when: a recording with 3 takes yields one group with a chosen take.
+  - [x] I4 Visual understanding: sample one frame per scene, then Gemini vision (Ollama LLaVA fallback) returns a caption and tags. Done when: each scene has a description.
+  - [x] I5 Speaker diarization: (optional, skipped for demo).
+  - [x] I6 Index orchestrator: Celery pipeline (transcribe, scenes, silences, takes, visuals) with per-stage progress, chunked for long files. Done when: GET /api/videos/{id}/index returns everything.
+  - [x] I7 Chapters, hook, highlights: upgrade A6 to use the full index. Done when: output includes chapters, a hook candidate and ranked highlights.
+  - Verification:
+    - I1: Implemented `SceneDetectorService` in `app/services/scene_detector.py` using `scenedetect.SceneManager` and `ContentDetector` with zero-deprecation `seconds` property and single-scene fallback; verified in `tests/test_indexing.py::test_i1_scene_detection_service`.
+    - I2: Implemented `SilenceFillerService` in `app/services/silence_detector.py` running FFmpeg `silencedetect` audio filter (`-af silencedetect=noise=-30dB:d=0.5`) and scanning transcript word-level timestamps against speech disfluency / filler tokens (`um`, `uh`, `er`, `ah`, `like`, `you know`, `hmm`, etc.); verified in `tests/test_indexing.py::test_i2_silence_and_filler_detection`.
+    - I3: Implemented `RepeatedTakeService` in `app/services/take_detector.py` grouping near-duplicate adjacent transcript sentences via `rapidfuzz.fuzz.token_sort_ratio` (default threshold 65.0) and ranking candidates using length, duration, filler-word penalty, and finality heuristic; verified in `tests/test_indexing.py::test_i3_repeated_takes_grouping`.
+    - I4: Implemented `VisualUnderstandingService` in `app/services/visual_service.py` extracting midpoint scene frames via FFmpeg and analyzing them using Gemini 1.5 Flash Vision (`generate_content`), falling back to Ollama `llava` and deterministic taggers; verified in `tests/test_indexing.py::test_i4_visual_understanding`.
+    - I5: Marked skipped for demo per specification.
+    - I6: Created `VideoIndex` database model (`app/models/video_index.py`), Alembic migration `e239c40b8350_create_video_indices_table.py`, `IndexOrchestratorService` in `app/services/index_orchestrator.py`, Celery task `index_video_task` in `app/tasks/index_task.py`, and endpoints `POST /api/videos/{id}/index` and `GET /api/videos/{id}/index` in `app/api/v1/endpoints/indexing.py`; verified in `tests/test_indexing.py::test_i6_index_orchestrator_and_api_flow`.
+    - I7: Enhanced `HighlightService.detect_index_insights()` in `app/services/highlight_service.py` consuming scenes, visuals, repeated takes, and transcript to synthesize thematic chapters, viral hook candidates, and ranked highlights; verified in `tests/test_indexing.py::test_i7_chapters_hook_and_highlights`.
+    - Full Quality: `pytest tests/test_indexing.py` (6/6 passed), entire test suite `pytest -q` (152/152 passed across all modules in 146.58s), `ruff check .` (0 errors), `mypy app` (0 issues across 64 source files).
 - [x] Phase 4: Render from the Timeline (R1, R2, R3, R4)
   - [x] R1 Proxies and UI assets: Celery task after upload that creates a 360p proxy, thumbnail strip and waveform peaks JSON. Endpoints return the proxy URL, thumbnails and waveform for a video.
   - [x] R2 Timeline-to-FFmpeg compiler: multi-track video and overlay compositing, audio mix, reusing the reframe, grade, transition and ASS caption code (A8–A10). Golden tests pass for single track, two-track overlay and captions.
@@ -38,7 +55,14 @@
   - Verification: Scaffolded Vite React TS in `frontend/`, configured `frontend/.env.example` and `frontend/.env`, created required subfolders (`src/api`, `src/pages`, `src/components`, `src/hooks`), configured root proxy scripts in `package.json`, and tested live with browser subagent showing `/health` returning `{"status": "ok"}` with raw JSON output and error boundaries; verified with `tsc -b && vite build` (pass), `ruff check .` (clean), `mypy app` (0 issues across 44 files), `pytest tests/test_presets.py` (3 passed).
 
 ## Next Up
-- [ ] I1 Scenes: PySceneDetect scene boundaries saved per video. Done when: a test video returns correct scene cuts.
+- [ ] Phase 6: AI Edit Planner (P1, P2, P3, P4, P5, P6, P7)
+  - [ ] P1 Tool schema: generate Gemini function-calling declarations from the T3 op models. Done when: the model can only emit valid op shapes.
+  - [ ] P2 Context builder: compact index summary and current timeline summary within a token budget. Done when: a 3-hour index fits in one request.
+  - [ ] P3 Plan endpoint: POST /api/timelines/{id}/plan {prompt} runs as a job and returns {rationale, ops[]}. Done when: "remove all silences" returns valid ops.
+  - [ ] P4 Validate and repair: apply ops to a copy, reject invalid ones, retry once with error feedback. Done when: bad plans are repaired or rejected with clear message.
+  - [ ] P5 Apply plan: POST .../plan/{plan_id}/apply applies all ops as one undo group with actor agent. Done when: one undo reverts the whole agent action.
+  - [ ] P6 Demo prompts: "tighten first 15s", "remove repeated takes", "add B-roll", "make 3 Shorts". Done when: each prompt works on the sample recording.
+  - [ ] P7 Live events: WebSocket /ws/timelines/{id} pushing op-applied events and job progress. Done when: a second browser tab sees edits live.
 
 
 

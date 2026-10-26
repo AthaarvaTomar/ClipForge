@@ -39,13 +39,13 @@
 
 ## Phase 5: Footage Indexing
 
-- [ ] **I1 Scenes**: PySceneDetect scene boundaries saved per video. Done when: a test video returns correct scene cuts.
-- [ ] **I2 Silence and fillers**: FFmpeg silencedetect plus filler words ("um", "uh") from the transcript. Done when: silences and fillers return as time ranges.
-- [ ] **I3 Repeated takes**: fuzzy-match adjacent transcript sentences (rapidfuzz), group near-duplicates and mark the best take. Done when: a recording with 3 takes yields one group with a chosen take.
-- [ ] **I4 Visual understanding**: sample one frame per scene, then Gemini vision (Ollama LLaVA fallback) returns a caption and tags. Done when: each scene has a description.
-- [ ] **I5 Speaker diarization**: WhisperX or pyannote (optional, skip for demo).
-- [ ] **I6 Index orchestrator**: Celery pipeline (transcribe, scenes, silences, takes, visuals) with per-stage progress, chunked for long files. Done when: GET /api/videos/{id}/index returns everything.
-- [ ] **I7 Chapters, hook, highlights**: upgrade A6 to use the full index. Done when: output includes chapters, a hook candidate and ranked highlights.
+- [x] **I1 Scenes**: PySceneDetect scene boundaries saved per video. Done when: a test video returns correct scene cuts.
+- [x] **I2 Silence and fillers**: FFmpeg silencedetect plus filler words ("um", "uh") from the transcript. Done when: silences and fillers return as time ranges.
+- [x] **I3 Repeated takes**: fuzzy-match adjacent transcript sentences (rapidfuzz), group near-duplicates and mark the best take. Done when: a recording with 3 takes yields one group with a chosen take.
+- [x] **I4 Visual understanding**: sample one frame per scene, then Gemini vision (Ollama LLaVA fallback) returns a caption and tags. Done when: each scene has a description.
+- [x] **I5 Speaker diarization**: WhisperX or pyannote (optional, skip for demo).
+- [x] **I6 Index orchestrator**: Celery pipeline (transcribe, scenes, silences, takes, visuals) with per-stage progress, chunked for long files. Done when: GET /api/videos/{id}/index returns everything.
+- [x] **I7 Chapters, hook, highlights**: upgrade A6 to use the full index. Done when: output includes chapters, a hook candidate and ranked highlights.
 
 ## Phase 6: AI Edit Planner
 

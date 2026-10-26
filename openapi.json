@@ -551,6 +551,100 @@
         }
       }
     },
+    "/api/videos/{video_id}/index": {
+      "post": {
+        "tags": [
+          "indexing"
+        ],
+        "summary": "Trigger video footage indexing",
+        "description": "Enqueue a background Celery task to run the complete indexing pipeline (scenes, silences, takes, visuals, chapters).",
+        "operationId": "trigger_video_index_api_videos__video_id__index_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "indexing"
+        ],
+        "summary": "Get video footage index",
+        "description": "Retrieve the complete AI index including scenes, silences, fillers, repeated takes, visuals, chapters, and hooks.",
+        "operationId": "get_video_index_api_videos__video_id__index_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoIndexResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/dummy": {
       "post": {
         "tags": [
@@ -2357,6 +2451,35 @@
         "title": "CaptionSpec",
         "description": "Subtitle and burned-in caption styling."
       },
+      "ChapterItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "start_time",
+          "end_time"
+        ],
+        "title": "ChapterItem",
+        "description": "Thematic chapter marker across the video."
+      },
       "ClipCreate": {
         "properties": {
           "video_id": {
@@ -2739,6 +2862,35 @@
         "title": "EditSpec",
         "description": "Full specification for editing, reframing, and rendering a video clip."
       },
+      "FillerItem": {
+        "properties": {
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "word",
+          "start_time",
+          "end_time"
+        ],
+        "title": "FillerItem",
+        "description": "Detected filler word token with timestamps from transcript."
+      },
       "FontPreset": {
         "properties": {
           "id": {
@@ -2882,6 +3034,40 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HookCandidate": {
+        "properties": {
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "hook": {
+            "type": "string",
+            "title": "Hook"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 9.0
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time",
+          "hook"
+        ],
+        "title": "HookCandidate",
+        "description": "Primary viral opening hook candidate."
       },
       "Item": {
         "properties": {
@@ -3161,6 +3347,124 @@
         "type": "object",
         "title": "ReframeSpec",
         "description": "Aspect ratio reframing options."
+      },
+      "SceneItem": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "start_time",
+          "end_time",
+          "duration"
+        ],
+        "title": "SceneItem",
+        "description": "Scene cut boundary identified by PySceneDetect."
+      },
+      "SilenceRange": {
+        "properties": {
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "end_time",
+          "duration"
+        ],
+        "title": "SilenceRange",
+        "description": "Audio silence interval identified by FFmpeg silencedetect."
+      },
+      "TakeGroup": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "takes": {
+            "items": {
+              "$ref": "#/components/schemas/TakeItem"
+            },
+            "type": "array",
+            "title": "Takes"
+          },
+          "chosen_take_index": {
+            "type": "integer",
+            "title": "Chosen Take Index",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id"
+        ],
+        "title": "TakeGroup",
+        "description": "Group of repeated near-duplicate takes with chosen best candidate."
+      },
+      "TakeItem": {
+        "properties": {
+          "take_index": {
+            "type": "integer",
+            "title": "Take Index"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "start_time": {
+            "type": "number",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "number",
+            "title": "End Time"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 0.0
+          },
+          "is_best": {
+            "type": "boolean",
+            "title": "Is Best",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "take_index",
+          "text",
+          "start_time",
+          "end_time"
+        ],
+        "title": "TakeItem",
+        "description": "A single take within a repeated sentence/paragraph group."
       },
       "Timeline": {
         "properties": {
@@ -3720,6 +4024,96 @@
         ],
         "title": "VideoAssetsResponse"
       },
+      "VideoIndexResponse": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/SceneItem"
+            },
+            "type": "array",
+            "title": "Scenes"
+          },
+          "silences": {
+            "items": {
+              "$ref": "#/components/schemas/SilenceRange"
+            },
+            "type": "array",
+            "title": "Silences"
+          },
+          "fillers": {
+            "items": {
+              "$ref": "#/components/schemas/FillerItem"
+            },
+            "type": "array",
+            "title": "Fillers"
+          },
+          "repeated_takes": {
+            "items": {
+              "$ref": "#/components/schemas/TakeGroup"
+            },
+            "type": "array",
+            "title": "Repeated Takes"
+          },
+          "visuals": {
+            "items": {
+              "$ref": "#/components/schemas/VisualScene"
+            },
+            "type": "array",
+            "title": "Visuals"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/ChapterItem"
+            },
+            "type": "array",
+            "title": "Chapters"
+          },
+          "hook": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HookCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "highlights": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Highlights"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "status"
+        ],
+        "title": "VideoIndexResponse",
+        "description": "Complete footage index response for GET /api/videos/{id}/index."
+      },
       "VideoListResponse": {
         "properties": {
           "videos": {
@@ -3835,6 +4229,37 @@
           "updated_at"
         ],
         "title": "VideoResponse"
+      },
+      "VisualScene": {
+        "properties": {
+          "scene_index": {
+            "type": "integer",
+            "title": "Scene Index"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scene_index",
+          "timestamp",
+          "caption"
+        ],
+        "title": "VisualScene",
+        "description": "Visual understanding description and tags for a scene frame."
       },
       "WordTimestamp": {
         "properties": {

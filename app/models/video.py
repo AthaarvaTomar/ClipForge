@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.job import Job
     from app.models.timeline import TimelineModel
     from app.models.transcript import Transcript
+    from app.models.video_index import VideoIndex
 
 
 class Video(Base, TimestampMixin):
@@ -54,5 +55,11 @@ class Video(Base, TimestampMixin):
         "TimelineModel",
         back_populates="video",
         cascade="all, delete-orphan",
+    )
+    index: Mapped["VideoIndex | None"] = relationship(
+        "VideoIndex",
+        back_populates="video",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
