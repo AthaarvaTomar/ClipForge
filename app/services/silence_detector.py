@@ -118,7 +118,7 @@ class SilenceFillerService:
 
         Returns: [{'word': 'um', 'start_time': 1.2, 'end_time': 1.5, 'confidence': 0.98}, ...]
         """
-        filler_set = (custom_fillers or COMMON_FILLER_WORDS)
+        filler_set = custom_fillers or COMMON_FILLER_WORDS
         detected: list[dict[str, Any]] = []
 
         for w in words:

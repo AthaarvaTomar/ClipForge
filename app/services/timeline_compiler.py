@@ -79,6 +79,7 @@ class TimelineCompiler:
 
     def resolve_source_path(self, source_ref: str) -> Path:
         """Resolve a media reference identifier to an absolute Path on disk."""
+        resolved: Path | str | None = None
         if callable(self.source_resolver):
             resolved = self.source_resolver(source_ref)
         elif isinstance(self.source_resolver, dict):
@@ -88,10 +89,27 @@ class TimelineCompiler:
                 resolved = Path(self.source_resolver["source"])
             elif self.timeline.video_id in self.source_resolver:
                 resolved = Path(self.source_resolver[self.timeline.video_id])
+
+        if resolved is None:
+            # Check if source_ref is directly an existing file path
+            direct_path = Path(source_ref)
+            if direct_path.is_file():
+                resolved = direct_path
             else:
-                raise FFmpegBuilderError(f"Cannot resolve source reference: '{source_ref}'")
-        else:
-            raise FFmpegBuilderError("Invalid source_resolver provided")
+                # Check DB for MediaAsset
+                from app.core.database import SessionLocal
+                from app.models.asset import MediaAsset
+
+                try:
+                    with SessionLocal() as db:
+                        asset = db.get(MediaAsset, source_ref)
+                        if asset and Path(asset.file_path).is_file():
+                            resolved = Path(asset.file_path)
+                except Exception:
+                    pass
+
+        if resolved is None:
+            raise FFmpegBuilderError(f"Cannot resolve source reference: '{source_ref}'")
 
         path = Path(resolved)
         if not path.is_file():
@@ -266,9 +284,7 @@ class TimelineCompiler:
                     f"[{curr_v}][{cut_v_labels[i]}]xfade=transition={trans_name}:"
                     f"duration={d:.3f}:offset={offset:.3f}[{out_v}]"
                 )
-                filters.append(
-                    f"[{curr_a}][{cut_a_labels[i]}]acrossfade=d={d:.3f}[{out_a}]"
-                )
+                filters.append(f"[{curr_a}][{cut_a_labels[i]}]acrossfade=d={d:.3f}[{out_a}]")
 
                 curr_v = out_v
                 curr_a = out_a
@@ -290,48 +306,99 @@ class TimelineCompiler:
         filters: list[str],
         include_audio: bool = True,
     ) -> tuple[str, list[str]]:
-        """Composite overlay items onto base_v. Returns (new_base_v, list_of_audio_labels)."""
+        """Composite overlay items onto base_v with position, scale, fades, and image support."""
         curr_base = base_v
         overlay_audios: list[str] = []
 
         for idx, item in enumerate(track.items):
             in_idx = self._register_input(item.source)
             has_a = self._audio_status[in_idx] and not track.muted
-            src_w, src_h = self._meta_status[in_idx]
+            resolved_path = self._source_inputs[item.source][1]
+            is_image = resolved_path.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")
 
             in_s = item.src_in / 1000.0
             out_s = item.src_out / 1000.0
             tl_start = item.start / 1000.0
             tl_end = item.end / 1000.0
+            item_dur_s = max(0.05, tl_end - tl_start)
 
-            # Trim overlay video
+            # 1. Trim overlay video or loop static image
             v_ov_trim = f"v_ov_t_{track.id}_{idx}"
-            filters.append(
-                f"[{in_idx}:v]trim=start={in_s:.3f}:end={out_s:.3f},"
-                f"setpts=PTS-STARTPTS+{tl_start:.3f}/TB[{v_ov_trim}]"
-            )
+            if is_image:
+                filters.append(
+                    f"[{in_idx}:v]loop=loop=-1:size=1:start=0,"
+                    f"trim=start=0:end={item_dur_s:.3f},"
+                    f"setpts=PTS-STARTPTS+{tl_start:.3f}/TB[{v_ov_trim}]"
+                )
+            else:
+                filters.append(
+                    f"[{in_idx}:v]trim=start={in_s:.3f}:end={out_s:.3f},"
+                    f"setpts=PTS-STARTPTS+{tl_start:.3f}/TB[{v_ov_trim}]"
+                )
 
-            # Scale / grade overlay item if specified
-            v_ov_ready = f"v_ov_r_{track.id}_{idx}"
+            # 2. Extract effects: Position, Scale, Fades, Opacity
             effects = item.effects or {}
-            scale_w = int(effects.get("width", self.target_width))
-            scale_h = int(effects.get("height", -2))
-            ov_grade = item.grade or GradeSpec()
+            pos_spec = str(effects.get("position", "center")).lower()
+            fade_in_ms = int(effects.get("fade_in_ms", effects.get("fade_in", 0)))
+            fade_out_ms = int(effects.get("fade_out_ms", effects.get("fade_out", 0)))
+            opacity = float(effects.get("opacity", 1.0))
 
+            # Scale calculation
+            if pos_spec == "pip":
+                scale_w = int(effects.get("width", int(self.target_width * 0.35)))
+                scale_h = int(effects.get("height", -2))
+            else:
+                scale_w = int(effects.get("width", self.target_width))
+                scale_h = int(effects.get("height", -2))
+
+            ov_grade = item.grade or GradeSpec()
             ov_v_chain: list[str] = [f"scale={scale_w}:{scale_h}"]
             if ov_grade.preset != "none" or ov_grade.brightness != 0 or ov_grade.contrast != 1:
                 ov_gr_lines = build_grade_filter("dummy_in", "dummy_out", ov_grade)
-                # extract filter inside dummy labels
                 core = ov_gr_lines[0].split("]")[1].split("[")[0]
                 if core != "null":
                     ov_v_chain.append(core)
 
+            # Fades & Opacity filters
+            if fade_in_ms > 0 or fade_out_ms > 0 or opacity < 1.0:
+                ov_v_chain.append("format=rgba")
+                if fade_in_ms > 0:
+                    fade_in_s = fade_in_ms / 1000.0
+                    ov_v_chain.append(f"fade=t=in:st={tl_start:.3f}:d={fade_in_s:.3f}:alpha=1")
+                if fade_out_ms > 0:
+                    fade_out_s = fade_out_ms / 1000.0
+                    fade_out_st = max(tl_start, tl_end - fade_out_s)
+                    ov_v_chain.append(f"fade=t=out:st={fade_out_st:.3f}:d={fade_out_s:.3f}:alpha=1")
+                if opacity < 1.0:
+                    ov_v_chain.append(f"colorchannelmixer=aa={opacity:.2f}")
+
+            v_ov_ready = f"v_ov_r_{track.id}_{idx}"
             filters.append(f"[{v_ov_trim}]{','.join(ov_v_chain)}[{v_ov_ready}]")
+
+            # Determine overlay x, y coordinate expressions
+            if pos_spec in ("pip", "bottom_right"):
+                x_expr = "W-w-32"
+                y_expr = "H-h-96"
+            elif pos_spec == "top_left":
+                x_expr = "32"
+                y_expr = "32"
+            elif pos_spec == "top_right":
+                x_expr = "W-w-32"
+                y_expr = "32"
+            elif pos_spec == "bottom_left":
+                x_expr = "32"
+                y_expr = "H-h-96"
+            elif pos_spec == "center":
+                x_expr = "(W-w)/2"
+                y_expr = "(H-h)/2"
+            else:
+                x_expr = str(effects.get("x", "(W-w)/2"))
+                y_expr = str(effects.get("y", "(H-h)/2"))
 
             # Composite onto curr_base with time enable
             v_ov_out = f"v_comp_{track.id}_{idx}"
             filters.append(
-                f"[{curr_base}][{v_ov_ready}]overlay=x=(W-w)/2:y=(H-h)/2:"
+                f"[{curr_base}][{v_ov_ready}]overlay=x={x_expr}:y={y_expr}:"
                 f"enable='between(t,{tl_start:.3f},{tl_end:.3f})':eof_action=pass[{v_ov_out}]"
             )
             curr_base = v_ov_out
@@ -340,10 +407,20 @@ class TimelineCompiler:
             if include_audio and has_a and item.volume > 0:
                 a_ov_out = f"a_ov_{track.id}_{idx}"
                 delay_ms = int(item.start)
-                filters.append(
-                    f"[{in_idx}:a]atrim=start={in_s:.3f}:end={out_s:.3f},asetpts=PTS-STARTPTS,"
-                    f"adelay={delay_ms}|{delay_ms},volume={item.volume:.3f}[{a_ov_out}]"
-                )
+                a_chain = [
+                    f"atrim=start={in_s:.3f}:end={out_s:.3f}",
+                    "asetpts=PTS-STARTPTS",
+                ]
+                if fade_in_ms > 0:
+                    a_chain.append(f"afade=t=in:st=0:d={fade_in_ms / 1000.0:.3f}")
+                if fade_out_ms > 0:
+                    a_chain.append(
+                        f"afade=t=out:st={max(0.0, item_dur_s - fade_out_ms / 1000.0):.3f}:"
+                        f"d={fade_out_ms / 1000.0:.3f}"
+                    )
+                a_chain.append(f"adelay={delay_ms}|{delay_ms}")
+                a_chain.append(f"volume={item.volume:.3f}")
+                filters.append(f"[{in_idx}:a]{','.join(a_chain)}[{a_ov_out}]")
                 overlay_audios.append(a_ov_out)
 
         return curr_base, overlay_audios
@@ -479,31 +556,88 @@ class TimelineCompiler:
             )
             overlay_audio_labels.extend(ov_audios)
 
-        # 3. Dedicated Audio Tracks
+        # 3. Dedicated Audio Tracks (Speech, Music, SFX)
+        speech_audio_labels: list[str] = [base_a] if base_a else []
+        music_audio_labels: list[str] = []
         extra_audio_labels: list[str] = []
+
         if include_audio:
             for aud_track in tracks_by_type[TrackType.AUDIO]:
-                extra_audios = self._compile_audio_track(aud_track, filters)
-                extra_audio_labels.extend(extra_audios)
+                t_name = (aud_track.name or "").lower()
+                is_music = "music" in t_name or "bgm" in t_name or "soundtrack" in t_name
+                is_speech = "speech" in t_name or "voice" in t_name or "dialog" in t_name
+                audios = self._compile_audio_track(aud_track, filters)
+                if is_music:
+                    music_audio_labels.extend(audios)
+                elif is_speech:
+                    speech_audio_labels.extend(audios)
+                else:
+                    extra_audio_labels.extend(audios)
 
-        # 4. Audio Mixdown
+        # 4. Audio Mixdown with Denoise, Ducking, and Loudness Normalization (Milestone M4)
         final_a = ""
         if include_audio:
-            all_audio_labels = (
-                ([base_a] if base_a else [])
-                + overlay_audio_labels
-                + extra_audio_labels
-            )
-            if not all_audio_labels:
+            a_speech_clean = ""
+            if speech_audio_labels:
+                if len(speech_audio_labels) == 1:
+                    a_speech_raw = speech_audio_labels[0]
+                else:
+                    a_speech_raw = "a_sp_mix"
+                    s_in = "".join(f"[{lbl}]" for lbl in speech_audio_labels)
+                    filters.append(
+                        f"{s_in}amix=inputs={len(speech_audio_labels)}:dropout_transition=0[{a_speech_raw}]"
+                    )
+                # Denoise on speech stream: highpass 80Hz + lowpass 8000Hz
+                # (speech band conditioning)
+                a_speech_clean = "a_sp_clean"
+                filters.append(f"[{a_speech_raw}]highpass=f=80,lowpass=f=8000[{a_speech_clean}]")
+
+            a_music_final = ""
+            if music_audio_labels:
+                if len(music_audio_labels) == 1:
+                    a_music_raw = music_audio_labels[0]
+                else:
+                    a_music_raw = "a_mu_mix"
+                    m_in = "".join(f"[{lbl}]" for lbl in music_audio_labels)
+                    filters.append(
+                        f"{m_in}amix=inputs={len(music_audio_labels)}:dropout_transition=0[{a_music_raw}]"
+                    )
+
+                if a_speech_clean:
+                    # Duck music under speech using sidechaincompress:
+                    # Music dips by ratio 4 when speech exceeds 0.08 threshold
+                    a_music_ducked = "a_mu_ducked"
+                    filters.append(
+                        f"[{a_music_raw}][{a_speech_clean}]sidechaincompress="
+                        f"threshold=0.08:ratio=4:attack=50:release=300[{a_music_ducked}]"
+                    )
+                    a_music_final = a_music_ducked
+                else:
+                    a_music_final = a_music_raw
+
+            # Combine all streams: clean speech + ducked music + overlay + extra
+            mix_inputs: list[str] = []
+            if a_speech_clean:
+                mix_inputs.append(a_speech_clean)
+            if a_music_final:
+                mix_inputs.append(a_music_final)
+            mix_inputs.extend(overlay_audio_labels)
+            mix_inputs.extend(extra_audio_labels)
+
+            if not mix_inputs:
                 final_a = ""
-            elif len(all_audio_labels) == 1:
-                final_a = all_audio_labels[0]
+            elif len(mix_inputs) == 1:
+                # Master loudness normalization
+                final_a = "a_master_norm"
+                filters.append(f"[{mix_inputs[0]}]loudnorm=I=-16:TP=-1.5:LRA=11[{final_a}]")
             else:
-                final_a = "a_mixed"
-                audio_inputs = "".join(f"[{lbl}]" for lbl in all_audio_labels)
+                a_mix_pre = "a_pre_norm"
+                mix_str = "".join(f"[{lbl}]" for lbl in mix_inputs)
                 filters.append(
-                    f"{audio_inputs}amix=inputs={len(all_audio_labels)}:duration=first:dropout_transition=0[{final_a}]"
+                    f"{mix_str}amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0[{a_mix_pre}]"
                 )
+                final_a = "a_master_norm"
+                filters.append(f"[{a_mix_pre}]loudnorm=I=-16:TP=-1.5:LRA=11[{final_a}]")
 
         # 5. Captions
         sub_tmp_dir = tmp_dir or self.output_path.parent
@@ -537,18 +671,29 @@ class TimelineCompiler:
             cmd.extend(["-progress", "pipe:1", "-nostats"])
 
         cmd.extend(input_args)
-        cmd.extend([
-            "-filter_complex", filter_complex,
-            "-map", f"[{final_v}]",
-            "-map", f"[{final_a}]",
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "22",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            str(self.output_path.resolve()),
-        ])
+        cmd.extend(
+            [
+                "-filter_complex",
+                filter_complex,
+                "-map",
+                f"[{final_v}]",
+                "-map",
+                f"[{final_a}]",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "22",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                str(self.output_path.resolve()),
+            ]
+        )
 
         return cmd, sub_file
 
@@ -683,6 +828,8 @@ class TimelineCompiler:
             "1",
             "-q:v",
             "2",
+            "-strict",
+            "-1",
             "-f",
             "image2",
             target,

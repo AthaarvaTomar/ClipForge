@@ -207,15 +207,19 @@ class TimelineService:
             return model.to_schema()
 
         # Find all ops sharing the same group_id up to current_seq, in reverse order
-        group_ops = db.execute(
-            select(TimelineOpModel)
-            .where(
-                TimelineOpModel.timeline_id == timeline_id,
-                TimelineOpModel.group_id == last_op.group_id,
-                TimelineOpModel.seq <= model.current_seq,
+        group_ops = (
+            db.execute(
+                select(TimelineOpModel)
+                .where(
+                    TimelineOpModel.timeline_id == timeline_id,
+                    TimelineOpModel.group_id == last_op.group_id,
+                    TimelineOpModel.seq <= model.current_seq,
+                )
+                .order_by(TimelineOpModel.seq.desc())
             )
-            .order_by(TimelineOpModel.seq.desc())
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         current_schema = model.to_schema()
         for op_rec in group_ops:
@@ -250,29 +254,37 @@ class TimelineService:
             )
 
         # Find the next op after current_seq
-        next_op = db.execute(
-            select(TimelineOpModel)
-            .where(
-                TimelineOpModel.timeline_id == timeline_id,
-                TimelineOpModel.seq > model.current_seq,
+        next_op = (
+            db.execute(
+                select(TimelineOpModel)
+                .where(
+                    TimelineOpModel.timeline_id == timeline_id,
+                    TimelineOpModel.seq > model.current_seq,
+                )
+                .order_by(TimelineOpModel.seq.asc())
             )
-            .order_by(TimelineOpModel.seq.asc())
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if not next_op:
             # Nothing to redo
             return model.to_schema()
 
         # Find all ops sharing this next group_id in forward sequence order
-        group_ops = db.execute(
-            select(TimelineOpModel)
-            .where(
-                TimelineOpModel.timeline_id == timeline_id,
-                TimelineOpModel.group_id == next_op.group_id,
-                TimelineOpModel.seq > model.current_seq,
+        group_ops = (
+            db.execute(
+                select(TimelineOpModel)
+                .where(
+                    TimelineOpModel.timeline_id == timeline_id,
+                    TimelineOpModel.group_id == next_op.group_id,
+                    TimelineOpModel.seq > model.current_seq,
+                )
+                .order_by(TimelineOpModel.seq.asc())
             )
-            .order_by(TimelineOpModel.seq.asc())
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         current_schema = model.to_schema()
         for op_rec in group_ops:
@@ -332,16 +344,24 @@ class TimelineService:
     def get_history(cls, db: Session, timeline_id: str) -> dict[str, Any]:
         """Fetch operation history and snapshot versions for a timeline."""
         model = cls.get_timeline_model(db, timeline_id)
-        ops = db.execute(
-            select(TimelineOpModel)
-            .where(TimelineOpModel.timeline_id == timeline_id)
-            .order_by(TimelineOpModel.seq.asc())
-        ).scalars().all()
-        versions = db.execute(
-            select(TimelineVersionModel)
-            .where(TimelineVersionModel.timeline_id == timeline_id)
-            .order_by(TimelineVersionModel.version.asc())
-        ).scalars().all()
+        ops = (
+            db.execute(
+                select(TimelineOpModel)
+                .where(TimelineOpModel.timeline_id == timeline_id)
+                .order_by(TimelineOpModel.seq.asc())
+            )
+            .scalars()
+            .all()
+        )
+        versions = (
+            db.execute(
+                select(TimelineVersionModel)
+                .where(TimelineVersionModel.timeline_id == timeline_id)
+                .order_by(TimelineVersionModel.version.asc())
+            )
+            .scalars()
+            .all()
+        )
 
         return {
             "timeline_id": model.id,

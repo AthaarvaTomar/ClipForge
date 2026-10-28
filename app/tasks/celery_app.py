@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.tasks.asset_task",
         "app.tasks.timeline_render_task",
         "app.tasks.index_task",
+        "app.tasks.plan_task",
     ],
 )
 
@@ -25,4 +26,15 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
+    task_default_queue="default",
+    task_routes={
+        "app.tasks.render_task.*": {"queue": "rendering"},
+        "app.tasks.timeline_render_task.*": {"queue": "rendering"},
+        "app.tasks.transcription_task.*": {"queue": "transcription"},
+        "app.tasks.index_task.*": {"queue": "indexing"},
+        "app.tasks.highlight_task.*": {"queue": "indexing"},
+        "app.tasks.dummy_task.*": {"queue": "default"},
+        "app.tasks.asset_task.*": {"queue": "default"},
+        "app.tasks.plan_task.*": {"queue": "default"},
+    },
 )

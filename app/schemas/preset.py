@@ -52,7 +52,6 @@ class FontPreset(BaseModel):
         default=False, description="Whether font is pre-installed on standard OS"
     )
 
-
     model_config = ConfigDict(extra="ignore")
 
 

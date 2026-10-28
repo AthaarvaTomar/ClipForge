@@ -59,11 +59,22 @@ def sample_video(tmp_path_factory: pytest.TempPathFactory) -> Generator[Path, No
     out_video = tmp_dir / "sample_video.mp4"
 
     cmd = [
-        ffmpeg_bin, "-y",
-        "-f", "lavfi", "-i", "testsrc=duration=3.0:size=1280x720:rate=30",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=3.0:sample_rate=44100",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=3.0:size=1280x720:rate=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=3.0:sample_rate=44100",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         str(out_video),
     ]
     subprocess.run(cmd, capture_output=True, check=True)

@@ -212,7 +212,6 @@ DEFAULT_FONTS = [
 ]
 
 
-
 class PresetService:
     """Service to load and return editing presets from JSON files or embedded defaults."""
 
@@ -242,9 +241,7 @@ class PresetService:
         raw_transitions = cls._load_json_or_default(
             base_dir / "transitions.json", DEFAULT_TRANSITIONS
         )
-        raw_animations = cls._load_json_or_default(
-            base_dir / "animations.json", DEFAULT_ANIMATIONS
-        )
+        raw_animations = cls._load_json_or_default(base_dir / "animations.json", DEFAULT_ANIMATIONS)
         raw_fonts = cls._load_json_or_default(base_dir / "fonts.json", DEFAULT_FONTS)
 
         grades = [GradePreset.model_validate(g) for g in raw_grades]

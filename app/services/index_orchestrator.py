@@ -35,6 +35,7 @@ class IndexOrchestratorService:
         on_progress: Callable[[int, str], None] | None = None,
     ) -> VideoIndex:
         """Run complete indexing pipeline on video."""
+
         def update_stage(pct: int, msg: str) -> None:
             if on_progress:
                 on_progress(pct, msg)

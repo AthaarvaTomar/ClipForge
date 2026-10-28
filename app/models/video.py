@@ -62,4 +62,3 @@ class Video(Base, TimestampMixin):
         cascade="all, delete-orphan",
         uselist=False,
     )
-

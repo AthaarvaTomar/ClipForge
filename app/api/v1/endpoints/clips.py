@@ -20,7 +20,6 @@ from app.tasks.render_task import render_clip_task
 router = APIRouter(prefix="/clips", tags=["Clips"])
 
 
-
 @router.post(
     "",
     response_model=ClipResponse,
@@ -275,9 +274,7 @@ def render_clip(
         )
 
     # Check active renders against concurrency limit
-    active_renders = (
-        db.scalar(select(func.count(Clip.id)).where(Clip.status == "RENDERING")) or 0
-    )
+    active_renders = db.scalar(select(func.count(Clip.id)).where(Clip.status == "RENDERING")) or 0
     if active_renders >= settings.RENDER_CONCURRENCY_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -395,4 +392,3 @@ def get_preview_frame(
 
     frame_bytes = extract_preview_frame(video.file_path, timestamp=src_time)
     return Response(content=frame_bytes, media_type="image/jpeg")
-

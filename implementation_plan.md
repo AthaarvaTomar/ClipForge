@@ -49,13 +49,13 @@
 
 ## Phase 6: AI Edit Planner
 
-- [ ] **P1 Tool schema**: generate Gemini function-calling declarations from the T3 op models. Done when: the model can only emit valid op shapes.
-- [ ] **P2 Context builder**: compact index summary and current timeline summary within a token budget. Done when: a 3-hour index fits in one request.
-- [ ] **P3 Plan endpoint**: POST /api/timelines/{id}/plan {prompt} runs as a job and returns {rationale, ops[]}. Done when: "remove all silences" returns valid ops.
-- [ ] **P4 Validate and repair**: apply ops to a copy, reject invalid ones, retry once with error feedback. Done when: bad plans are repaired or rejected with clear message.
-- [ ] **P5 Apply plan**: POST .../plan/{plan_id}/apply applies all ops as one undo group with actor agent. Done when: one undo reverts the whole agent action.
-- [ ] **P6 Demo prompts**: "tighten first 15s", "remove repeated takes", "add B-roll", "make 3 Shorts". Done when: each prompt works on the sample recording.
-- [ ] **P7 Live events**: WebSocket /ws/timelines/{id} pushing op-applied events and job progress. Done when: a second browser tab sees edits live.
+- [x] **P1 Tool schema**: generate Gemini function-calling declarations from the T3 op models. Done when: the model can only emit valid op shapes.
+- [x] **P2 Context builder**: compact index summary and current timeline summary within a token budget. Done when: a 3-hour index fits in one request.
+- [x] **P3 Plan endpoint**: POST /api/timelines/{id}/plan {prompt} runs as a job and returns {rationale, ops[]}. Done when: "remove all silences" returns valid ops.
+- [x] **P4 Validate and repair**: apply ops to a copy, reject invalid ones, retry once with error feedback. Done when: bad plans are repaired or rejected with clear message.
+- [x] **P5 Apply plan**: POST .../plan/{plan_id}/apply applies all ops as one undo group with actor agent. Done when: one undo reverts the whole agent action.
+- [x] **P6 Demo prompts**: "tighten first 15s", "remove repeated takes", "add B-roll", "make 3 Shorts". Done when: each prompt works on the sample recording.
+- [x] **P7 Live events**: WebSocket /ws/timelines/{id} pushing op-applied events and job progress. Done when: a second browser tab sees edits live.
 
 ## Phase 7: Editor UI (React, match mockup)
 
@@ -71,15 +71,15 @@
 
 ## Phase 8: B-roll and Audio
 
-- [ ] **M1 Asset library**: upload images/video, plus Pexels/Pixabay search with attribution. Done when: keyword search returns downloadable clips.
-- [ ] **M2 Overlay compositing**: B-roll/image on overlay track with position, scale, fades. Done when: render shows overlay at right time.
-- [ ] **M3 Planner B-roll**: pick keywords from transcript, insert overlay ops. Done when: "add B-roll" fills chosen segments.
-- [ ] **M4 Audio layers**: loudness normalisation, denoise, music ducking under speech. Done when: music dips while speech plays.
+- [x] **M1 Asset library**: upload images/video, plus Pexels/Pixabay search with attribution. Done when: keyword search returns downloadable clips.
+- [x] **M2 Overlay compositing**: B-roll/image on overlay track with position, scale, fades. Done when: render shows overlay at right time.
+- [x] **M3 Planner B-roll**: pick keywords from transcript, insert overlay ops. Done when: "add B-roll" fills chosen segments.
+- [x] **M4 Audio layers**: loudness normalisation, denoise, music ducking under speech. Done when: music dips while speech plays.
 
 ## Phase 9: Scale, Measure, Demo
 
-- [ ] **S1 Storage abstraction**: local disk by default, MinIO optional. Done when: switching by env var works.
-- [ ] **S2 Resumable upload**: tus protocol. Done when: interrupted upload resumes.
-- [ ] **S3 Worker scaling**: separate Celery queues, docker compose scale. Done when: two workers render in parallel.
-- [ ] **S4 Metrics**: timing table, /api/metrics for wait/render time, benchmark script. Done when: README lists benchmark numbers.
-- [ ] **S5 Demo run**: rehearse demo script and fix blockers. Done when: full demo runs without manual fixes.
+- [x] **S1 Storage abstraction**: local disk by default, MinIO optional. Done when: switching by env var works.
+- [x] **S2 Resumable upload**: tus protocol. Done when: interrupted upload resumes.
+- [x] **S3 Worker scaling**: separate Celery queues, docker compose scale. Done when: two workers render in parallel.
+- [x] **S4 Metrics**: timing table, /api/metrics for wait/render time, benchmark script. Done when: README lists benchmark numbers.
+- [x] **S5 Demo run**: rehearse demo script and fix blockers. Done when: full demo runs without manual fixes.

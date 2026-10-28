@@ -10,9 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.api import api_router
+from app.api.v1.endpoints.websocket import router as ws_router
 from app.config import settings
 from app.core.logging import logger, setup_logging
 from app.core.security import verify_api_key
+from app.services.planner_service import (
+    TimelinePlanNotFoundError,
+    TimelinePlanValidationError,
+)
 from app.services.timeline_engine import TimelineOperationError
 from app.services.timeline_service import (
     TimelineNotFoundError,
@@ -55,7 +60,6 @@ async def request_logging_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-
     """Track request processing duration and log incoming HTTP requests."""
     start_time = time.perf_counter()
     response = await call_next(request)
@@ -109,6 +113,7 @@ async def validation_exception_handler(
             },
         },
     )
+
 
 @app.exception_handler(TimelineVersionConflictError)
 async def timeline_conflict_handler(
@@ -165,6 +170,40 @@ async def timeline_operation_error_handler(
     )
 
 
+@app.exception_handler(TimelinePlanNotFoundError)
+async def timeline_plan_not_found_handler(
+    request: Request,
+    exc: TimelinePlanNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "detail": str(exc),
+            "error": {
+                "code": "NOT_FOUND",
+                "message": str(exc),
+            },
+        },
+    )
+
+
+@app.exception_handler(TimelinePlanValidationError)
+async def timeline_plan_validation_error_handler(
+    request: Request,
+    exc: TimelinePlanValidationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={
+            "detail": str(exc),
+            "error": {
+                "code": "UNPROCESSABLE_ENTITY",
+                "message": str(exc),
+            },
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled server exception: %s", exc)
@@ -188,6 +227,9 @@ app.include_router(
     dependencies=[Depends(verify_api_key)],
 )
 
+# Include WebSocket router for live events
+app.include_router(ws_router)
+
 
 @app.get("/health", tags=["Health"])
 async def health_check() -> dict[str, str]:
@@ -197,4 +239,3 @@ async def health_check() -> dict[str, str]:
 @app.get("/", tags=["Root"])
 async def root() -> dict[str, str]:
     return {"message": f"Welcome to {settings.PROJECT_NAME} API. Visit /docs for documentation."}
-

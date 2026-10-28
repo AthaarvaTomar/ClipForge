@@ -57,7 +57,6 @@ def clean_clips_state(db_session: Session) -> Generator[None, None, None]:
     db_session.commit()
 
 
-
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
@@ -84,10 +83,20 @@ def sample_video(tmp_path_factory: pytest.TempPathFactory) -> Generator[Path, No
     cmd = [
         ffmpeg_bin,
         "-y",
-        "-f", "lavfi", "-i", "testsrc=duration=2.5:size=1280x720:rate=30",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=2.5:sample_rate=44100",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=2.5:size=1280x720:rate=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=2.5:sample_rate=44100",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         str(out_video),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
@@ -249,7 +258,6 @@ def test_render_clip_task_end_to_end(
     assert job_record is not None
     assert job_record.status == "COMPLETED"
     assert job_record.progress == 100
-
 
 
 # ---------------------------------------------------------------------------

@@ -136,9 +136,7 @@ def generate_thumbnails(
     return {"count": len(names), "interval": round(interval, 4), "width": THUMB_WIDTH}
 
 
-def compute_peaks(
-    chunks: Callable[[], bytes], samples_per_peak: int
-) -> list[float]:
+def compute_peaks(chunks: Callable[[], bytes], samples_per_peak: int) -> list[float]:
     """Reduce a stream of s16le mono samples to normalised peak values (0..1)."""
     peaks: list[float] = []
     carry = array.array("h")

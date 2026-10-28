@@ -113,9 +113,7 @@ def test_api_key_when_configured_enforces_auth(client: TestClient) -> None:
         assert res_wrong_key.status_code == 401
 
         # 3. Valid key via X-API-Key header should succeed
-        res_valid_header = client.get(
-            "/api/presets", headers={"X-API-Key": "test-secret-key-1234"}
-        )
+        res_valid_header = client.get("/api/presets", headers={"X-API-Key": "test-secret-key-1234"})
         assert res_valid_header.status_code == 200
 
         # 4. Valid key via Bearer token should succeed
@@ -141,7 +139,6 @@ def test_cors_headers_and_timing_header(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") in ("http://localhost:3000", "*")
     assert "X-Process-Time-Ms" in response.headers
-
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +196,6 @@ def test_render_concurrency_limit(
         db_session.commit()
 
 
-
 # ---------------------------------------------------------------------------
 # Killing FFmpeg Mid-Render Marks Job FAILED with Message
 # ---------------------------------------------------------------------------
@@ -252,7 +248,6 @@ def test_killing_ffmpeg_mid_render_marks_job_failed_with_message(
     partial_output = settings.OUTPUT_DIR / f"{clip.id}.mp4"
     partial_output.write_bytes(b"partial byte stream before SIGKILL")
 
-
     def mock_run_killed(*args: object, **kwargs: object) -> Path:
         # Simulate partial file remaining before process kill
         assert partial_output.exists()
@@ -294,7 +289,6 @@ def test_killing_ffmpeg_mid_render_marks_job_failed_with_message(
     db_session.commit()
 
 
-
 def test_ffmpeg_timeout_handling(tmp_path: Path) -> None:
     """Verifies that an FFmpeg render timing out raises FFmpegBuilderError with timeout message."""
     input_file = tmp_path / "input.mp4"
@@ -317,4 +311,3 @@ def test_ffmpeg_timeout_handling(tmp_path: Path) -> None:
         with pytest.raises(FFmpegBuilderError) as exc:
             builder.run(timeout=0.1)
         assert "timed out after 0.1s" in str(exc.value)
-

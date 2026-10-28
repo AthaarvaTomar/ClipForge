@@ -11,4 +11,3 @@ __all__ = [
     "run_dummy_task",
     "transcribe_video_task",
 ]
-

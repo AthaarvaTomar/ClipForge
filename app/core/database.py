@@ -29,12 +29,14 @@ def set_sqlite_pragma(dbapi_connection: Any, connection_record: Any) -> None:
         cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
 
+
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
     expire_on_commit=False,
 )
+
 
 class Base(DeclarativeBase):
     pass

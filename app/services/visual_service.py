@@ -59,7 +59,7 @@ class VisualUnderstandingService:
         prompt = (
             "Analyze this video frame. Describe the visual scene in 1-2 concise sentences. "
             "Output strictly valid JSON with keys 'caption' (string) and 'tags' (list of tags). "
-            "Example: {\"caption\": \"A person speaking in a studio.\", \"tags\": [\"speaker\"]}"
+            'Example: {"caption": "A person speaking in a studio.", "tags": ["speaker"]}'
         )
 
         # 1. Try Gemini Vision REST API

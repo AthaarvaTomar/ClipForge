@@ -3,9 +3,72 @@
 > Feed ONLY this file (plus AGENTS.md) to the AI each session. Keep it to ~2 hours of work.
 
 ## Active Item
-None. Phase 5 (Footage Indexing) completed.
+<!-- Cleared: Phase 9 and UI Section 8 completed -->
 
 ## Completed in this session
+- [x] UI Section 8: The Timeline component
+  - Toolbar with Split at Playhead, Ripple Delete, Snapping toggle, and Zoom slider (0.5x–3.0x).
+  - Time Ruler with milliseconds / SMPTE timecode ticks and playhead indicator.
+  - INDEX lane with visual badges for speech, scenes, and silences.
+  - Multi-track VIDEO lanes (CC, V2 B-ROLL, V1) and AUDIO lanes (A1 SPEECH, A2 MUSIC).
+  - Linked selection between video and audio clips, AI Edited indicator badge on modified clips.
+  - Playhead dragging with live timecode updates; Zustand store integration in `timelineStore.ts`.
+  - Replaced Section 8 placeholder in `frontend/src/pages/EditorPage.tsx` with `<Timeline />`.
+  - Verified frontend build: `npm run build` (`tsc -b && vite build`) passed with 0 errors in 2.59s.
+- [x] Phase 9: Scale, Measure, Demo
+  - [x] S1 Storage abstraction: Local disk by default, MinIO optional. Switching by env var works.
+    - Verified in `tests/test_storage.py` (3/3 passed).
+  - [x] S2 Resumable upload: tus protocol. Interrupted upload resumes.
+    - Verified in `tests/test_tus.py` (3/3 passed).
+  - [x] S3 Worker scaling: Separate Celery queues (`rendering`, `transcription`, `indexing`, `default`), scalable worker deployment in `docker-compose.yml`.
+    - Verified in `tests/test_metrics.py::test_s3_parallel_render_workers`.
+  - [x] S4 Metrics: timing table `task_metrics`, `/api/metrics` for wait/render time, benchmark script `scripts/benchmark_render.py` outputting numbers in `README.md`.
+    - Verified in `tests/test_metrics.py` (4/4 passed).
+  - [x] S5 Demo run: rehearse demo script and fix blockers. Full demo runs without manual fixes.
+    - Verified with `scripts/demo_run.py` passing all 10 steps end-to-end with exit code 0.
+- [x] Section 3 fixes:
+  - Removed "★ 8.5" fallback. If a clip has no score, no badge is displayed.
+  - Deleted seeded clips from database (0 clips remaining in DB).
+  - Provided `tests/generate_real_highlights.py` and documented highlight detection workflow.
+  - Ran `audit` and `polish` on Shorts page and verified at 640px mobile layout.
+- [x] Sections 4, 5, 6, 7 Editor Page (`/editor/:timelineId`):
+  - Section 4: Top bar (48px) with Logo, breadcrumbs, mono "Saved · v12", Undo/Redo icon buttons with tooltips, History button, and primary Export button.
+  - Section 5: Agent panel (320px) with Agent/Transcript/Assets tabs, chat messages, proposed plan card with op tags, Apply plan and Discard actions, and prompt textarea.
+  - Section 6: Preview (center on `#0A0B0D`) with 9:16 vertical canvas, animated captions, transport controls, and mono timecode (`00:00:12:08 / 00:00:42:00`).
+  - Section 7: Inspector (280px) displaying selected track range (`V1 · 00:09:10 – 00:21:02`), Colour grade select, Transition select, and Volume slider.
+  - Bottom panel: 360px bordered panel labeled "Timeline" reserved for Section 8.
+  - Mock Timeline: Schema-compliant JSON in `frontend/src/mocks/timeline.ts`.
+  - State: Zustand store in `frontend/src/store/timelineStore.ts` supporting local plan application as one undo step.
+  - Desktop-first: Screen size gate below 1100px showing "Open on a larger screen".
+  - Audited & polished at 1440px and 1100px.
+- [x] Phase 8: B-roll and Audio (M1, M2, M3, M4)
+  - [x] M1 Asset library: upload images/video, plus Pexels/Pixabay search with attribution. Done when: keyword search returns downloadable clips.
+  - [x] M2 Overlay compositing: B-roll/image on overlay track with position, scale, fades. Done when: render shows overlay at right time.
+  - [x] M3 Planner B-roll: pick keywords from transcript, insert overlay ops. Done when: "add B-roll" fills chosen segments.
+  - [x] M4 Audio layers: loudness normalisation, denoise, music ducking under speech. Done when: music dips while speech plays.
+  - Verification:
+    - M1: Created `MediaAsset` model (`media_assets` table), Alembic migration `e6d9cf16112e_create_media_assets_table.py`, Pydantic schemas in `app/schemas/asset.py`, `StockAssetService` in `app/services/stock_asset_service.py` with Pexels and Pixabay REST integration + attribution metadata + offline fallback catalog, and full REST API routes in `app/api/v1/endpoints/assets.py` (`GET /api/assets/search`, `POST /api/assets/import`, `POST /api/assets/upload`, `GET /api/assets`, `GET /api/assets/{id}`, `GET /api/assets/{id}/file`). Updated `openapi.json`.
+    - M2: Upgraded `_compile_overlay_track` in `app/services/timeline_compiler.py` with multi-position support (`pip`, `top_left`, `top_right`, `bottom_left`, `bottom_right`, `center`, custom coordinates), aspect-ratio scaling, video/audio fade transitions (`fade=t=in/out`, `afade`), static image looping (`loop=loop=-1:size=1:start=0`), and direct asset ID resolution in `resolve_source_path` querying database assets.
+    - M3: Enhanced `EditPlannerService._generate_demo_ops` in `app/services/planner_service.py` extracting transcript and scene keywords from index, adding overlay track (`AddTrackOp`), and inserting B-roll overlay items (`AddItemOp`) with crossfades and contextual rationale.
+    - M4: Upgraded audio mixdown in `TimelineCompiler.build_filter_graph` with speech stream band conditioning/denoise (`highpass=f=80,lowpass=f=8000`), dynamic music ducking under dialogue via `sidechaincompress=threshold=0.08:ratio=4:attack=50:release=300`, and master EBU R128 loudness normalization (`loudnorm=I=-16:TP=-1.5:LRA=11`).
+    - Verified with integration test suite in `tests/test_broll_and_audio.py` (5/5 passed in 11.57s), full regression suite (174/174 passed across 27 test modules in 215.21s), `ruff check app tests` (clean), `mypy app` (0 issues across 76 files).
+- [x] Phase 6: AI Edit Planner (P1, P2, P3, P4, P5, P6, P7)
+  - [x] P1 Tool schema: generate Gemini function-calling declarations from the T3 op models.
+  - [x] P2 Context builder: compact index summary and current timeline summary within a token budget.
+  - [x] P3 Plan endpoint: POST /api/timelines/{id}/plan {prompt} runs as a job and returns {rationale, ops[]}.
+  - [x] P4 Validate and repair: apply ops to a copy, reject invalid ones, retry once with error feedback.
+  - [x] P5 Apply plan: POST .../plan/{plan_id}/apply applies all ops as one undo group with actor agent.
+  - [x] P6 Demo prompts: "tighten first 15s", "remove repeated takes", "add B-roll", "make 3 Shorts".
+  - [x] P7 Live events: WebSocket /ws/timelines/{id} pushing op-applied events and job progress.
+  - Verification:
+    - Implemented `TimelineToolSchemaService` in `app/services/tool_schema.py` and strict Pydantic op models in `app/schemas/timeline_ops.py` for all 13 timeline operations.
+    - Implemented `ContextBuilderService` in `app/services/context_builder.py` creating compact, token-budgeted summaries of 3-hour video indices and multi-track timelines.
+    - Added `EditPlanModel` DB table (`edit_plans`), migration `c69d643870a6_create_edit_plans_table.py`, and endpoints in `app/api/v1/endpoints/timelines.py`: `POST /api/timelines/{id}/plan` (dry-run & Celery background task `app/tasks/plan_task.py`) and `GET /api/timelines/{id}/plan/{plan_id}`.
+    - Implemented dry-run validation, automatic dependency pruning, and retries in `EditPlannerService.validate_and_repair_plan()`.
+    - Implemented single-undo-group execution with `actor="agent"` in `POST /api/timelines/{id}/plan/{plan_id}/apply`, verified single undo rolls back full agent edits.
+    - Implemented deterministic heuristics and Gemini function calling in `_generate_demo_ops()` for all 5 demo prompts.
+    - Implemented `TimelineConnectionManager` and WebSocket route `GET /ws/timelines/{id}` in `app/api/v1/endpoints/websocket.py` pushing live op-applied events and job progress.
+    - Full Quality: `pytest tests/test_planner.py tests/test_planner_schema.py` (17/17 passed), full pytest repository suite (169/169 passed in 173.19s), `ruff check app tests` (All checks passed), `mypy app` (0 issues across 72 source files).
 - [x] Phase 5: Footage Indexing (I1, I2, I3, I4, I5, I6, I7)
   - [x] I1 Scenes: PySceneDetect scene boundaries saved per video. Done when: a test video returns correct scene cuts.
   - [x] I2 Silence and fillers: FFmpeg silencedetect plus filler words ("um", "uh") from the transcript. Done when: silences and fillers return as time ranges.

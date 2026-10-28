@@ -467,9 +467,7 @@ def test_render_3_segment_transitions_smooth_and_av_sync(
     assert 2.2 <= meta.duration <= 2.6
 
 
-def test_render_3_segment_transitions_wipeleft(
-    sample_16_9_video: Path, tmp_path: Path
-) -> None:
+def test_render_3_segment_transitions_wipeleft(sample_16_9_video: Path, tmp_path: Path) -> None:
     out_path = tmp_path / "3_segment_wipeleft_render.mp4"
     spec = EditSpec(
         cuts=[
@@ -495,9 +493,7 @@ def test_render_3_segment_transitions_wipeleft(
     assert 2.2 <= meta.duration <= 2.6
 
 
-def test_render_3_segment_transitions_no_audio(
-    sample_no_audio_video: Path, tmp_path: Path
-) -> None:
+def test_render_3_segment_transitions_no_audio(sample_no_audio_video: Path, tmp_path: Path) -> None:
     out_path = tmp_path / "3_segment_no_audio_render.mp4"
     spec = EditSpec(
         cuts=[
@@ -520,4 +516,3 @@ def test_render_3_segment_transitions_no_audio(
     meta = probe_video(result)
     assert meta.width == 1080
     assert meta.height == 1920
-

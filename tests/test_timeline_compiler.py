@@ -35,22 +35,44 @@ def sample_media(
 
     # Video 1: 1280x720 blue background with 440Hz sine wave (2.5s)
     cmd1 = [
-        ffmpeg_bin, "-y",
-        "-f", "lavfi", "-i", "testsrc=duration=2.5:size=1280x720:rate=30",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=2.5:sample_rate=44100",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=2.5:size=1280x720:rate=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=2.5:sample_rate=44100",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         str(video_1),
     ]
     subprocess.run(cmd1, capture_output=True, check=True)
 
     # Video 2: 640x360 red/green test pattern with 880Hz sine wave (1.5s)
     cmd2 = [
-        ffmpeg_bin, "-y",
-        "-f", "lavfi", "-i", "smptebars=duration=1.5:size=640x360:rate=30",
-        "-f", "lavfi", "-i", "sine=frequency=880:duration=1.5:sample_rate=44100",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "smptebars=duration=1.5:size=640x360:rate=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=880:duration=1.5:sample_rate=44100",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         str(video_2),
     ]
     subprocess.run(cmd2, capture_output=True, check=True)
@@ -149,7 +171,7 @@ def test_golden_two_track_overlay(sample_media: tuple[Path, Path], tmp_path: Pat
         source="vid_2",
         src_in=0,
         src_out=1000,  # 1.0s long
-        start=500,     # placed at 500ms on timeline
+        start=500,  # placed at 500ms on timeline
         volume=0.5,
         effects={"width": 480},
     )

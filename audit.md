@@ -596,3 +596,174 @@
   - Full `pytest` repository test suite: 152 passed across all modules in 146.58s (0 failures, 0 warnings).
   - `ruff check .`: All checks passed (0 errors).
   - `mypy app`: Success, 0 issues across 64 source files.
+
+### Session: Task P1 Tool Schema (Phase 6 AI Edit Planner)
+- **Objective**: Generate Gemini function-calling declarations from T3 timeline operation models so that the model can only emit valid op shapes.
+- **Implemented**:
+  - `app/schemas/timeline_ops.py`: Defined strict Pydantic v2 models for all 13 T3 timeline operations:
+    - `AddTrackOp`, `RemoveTrackOp`, `AddItemOp`, `RemoveItemOp`, `SplitOp`, `TrimOp`, `MoveOp`, `RippleDeleteOp`, `SetVolumeOp`, `SetGradeOp`, `SetTransitionOp`, `AddCaptionOp`, `UpdateCaptionOp`.
+    - Integrated constraints: non-negative integer millisecond bounds, volume range [0.0, 2.0], valid `TrackType`, forbid extra parameters (`extra='forbid'`), and `TimelineOp` discriminated union.
+  - `app/services/tool_schema.py`: Implemented `TimelineToolSchemaService`:
+    - `generate_function_declaration(op_name)`: Translates Pydantic schema into Gemini REST API `functionDeclaration` with inlined `$defs`, descriptions, required parameters list, and capitalized types (`OBJECT`, `STRING`, `INTEGER`, `NUMBER`, `BOOLEAN`, `ARRAY`).
+    - `get_tool_declarations()`: Generates function declarations for all 13 ops.
+    - `get_gemini_tools_payload()`: Formats tools array for direct inclusion in Gemini REST API request payloads.
+    - `parse_tool_call(name, args)`: Strictly validates model call against target op model; raises `TimelineToolValidationError` with error details on malformed or out-of-bounds input.
+    - `validate_plan_ops(ops)`: Validates sequence of planner operations ready for execution in `TimelineEngine.apply()`.
+  - Exported schemas and service in `app/schemas/__init__.py` and `app/services/__init__.py`.
+  - `tests/test_planner_schema.py`: 11 comprehensive tests:
+    - `test_generate_function_declarations_all_13_ops`: Verified generation and properties for all 13 operations with 0 unresolved `$refs`.
+    - `test_gemini_tools_payload_format`: Validated Gemini REST API structure.
+    - `test_split_declaration_parameters`: Verified parameter types and required fields for split.
+    - `test_parse_tool_call_valid_ops`: Verified argument parsing across ops.
+    - `test_parse_tool_call_rejects_missing_required_fields`: Rejected incomplete calls.
+    - `test_parse_tool_call_rejects_negative_timestamps`: Rejected negative time values.
+    - `test_parse_tool_call_rejects_invalid_volume_range`: Rejected out-of-range volume.
+    - `test_parse_tool_call_rejects_unknown_tool`: Rejected unsupported tool names.
+    - `test_parse_tool_call_rejects_forbidden_extra_fields`: Rejected extraneous payload properties.
+    - `test_validate_plan_ops_batch`: Verified planner batch operation validation.
+    - `test_round_trip_with_timeline_engine`: Verified end-to-end execution of schema-validated op through `TimelineEngine.apply()` and inverse restoration.
+- **Quality Checks**:
+  - `pytest tests/test_planner_schema.py`: 11/11 passed in 2.79s.
+  - `pytest` timeline & planner suite: 45/45 passed in 5.05s.
+  - `ruff check .`: All checks passed (0 errors).
+  - `mypy app tests`: Success, 0 issues across 92 source files.
+### Session: Phase 6 AI Edit Planner (P2, P3, P4, P5, P6, P7)
+- **Objective**: Complete all Phase 6 AI Edit Planner milestones (P2 Context Builder, P3 Plan Endpoint, P4 Validate and Repair, P5 Apply Plan, P6 Demo Prompts, P7 Live Events).
+- **Implemented**:
+  - `P2 Context Builder`: Implemented `ContextBuilderService` in `app/services/context_builder.py` providing compact human/LLM summaries for multi-hour video indices (chapters, hooks, silences, takes, scenes) and timelines under token limits (~2k tokens for 3-hour content).
+  - `P3 Plan Endpoint`:
+    - Implemented `EditPlanModel` (`edit_plans` table) with Alembic migration `c69d643870a6_create_edit_plans_table.py`.
+    - Added Pydantic schemas in `app/schemas/plan.py` (`PlanRequest`, `PlanResponse`, `ApplyPlanRequest`).
+    - Added Celery task in `app/tasks/plan_task.py` and registered with `celery_app.py`.
+    - Added REST endpoints in `app/api/v1/endpoints/timelines.py`: `POST /api/timelines/{id}/plan` (with synchronous `dry_run=True` and async background job support) and `GET /api/timelines/{id}/plan/{plan_id}`.
+  - `P4 Validate and Repair`: Implemented `EditPlannerService.validate_and_repair_plan()` in `app/services/planner_service.py` performing dry-runs on timeline copies, identifying and pruning invalid or conflicting operations, cascading split-item dependencies, and retrying.
+  - `P5 Apply Plan`:
+    - Implemented `POST /api/timelines/{id}/plan/{plan_id}/apply` applying all plan operations as a single undo group with `actor="agent"`.
+    - Verified that one undo call cleanly rolls back the full agent action.
+  - `P6 Demo Prompts`: Deterministic heuristics and Gemini function calling in `_generate_demo_ops()` supporting:
+    - `"tighten first 15s"`: Trims intro pause on primary video item.
+    - `"remove repeated takes"`: Ripple-deletes redundant takes identified in index.
+    - `"remove all silences"`: Splits and ripple-deletes dead-air pauses.
+    - `"add B-roll"`: Injects overlay track with visual B-roll items.
+    - `"make 3 Shorts"`: Applies viral hook cuts, cinematic grade, and punchy captions.
+  - `P7 Live Events`:
+    - Built `TimelineConnectionManager` in `app/api/v1/endpoints/websocket.py` with thread-safe broadcast scheduling.
+    - Exposed WebSocket endpoint `GET /ws/timelines/{id}` mounted in `app/main.py`.
+    - Broadcasts op-applied notifications and job progress updates live to connected clients.
+  - Regenerated `openapi.json` with all new planner routes and schemas.
+  - Added full test suite in `tests/test_planner.py` covering P2, P3, P4, P5, P6, and P7.
+- **Quality Checks**:
+  - `pytest tests/test_planner.py tests/test_planner_schema.py`: 17/17 passed in 6.03s.
+  - Full test suite: 169/169 passed in 173.19s across all 26 test modules (0 failures, 0 errors).
+  - `ruff check app tests`: All checks passed (0 errors, 0 warnings).
+  - `mypy app`: Success, no issues found in 72 source files.
+
+### Session: Phase 8 B-roll and Audio (M1, M2, M3, M4)
+- **Objective**: Complete all Phase 8 milestones:
+  - M1 Asset library (upload images/video, Pexels/Pixabay search with attribution, asset storage & API).
+  - M2 Overlay compositing (B-roll/image on overlay track with position, scale, fades, image looping).
+  - M3 Planner B-roll (pick keywords from transcript/index, insert overlay ops with transitions).
+  - M4 Audio layers (speech band denoise, music ducking under speech via sidechain compression, loudness normalisation via EBU R128 loudnorm).
+- **Implemented**:
+  - `M1 Asset library`:
+    - Created `MediaAsset` model in `app/models/asset.py` with Alembic migration `e6d9cf16112e_create_media_assets_table.py`.
+    - Created Pydantic schemas in `app/schemas/asset.py` (`StockItem`, `AttributionInfo`, `StockSearchResponse`, `AssetResponse`, `ImportAssetRequest`, `AssetListResponse`).
+    - Configured `PEXELS_API_KEY` and `PIXABAY_API_KEY` in `app/config.py`.
+    - Implemented `StockAssetService` in `app/services/stock_asset_service.py` integrating Pexels and Pixabay APIs with author attribution and offline fallback.
+    - Added asset REST endpoints in `app/api/v1/endpoints/assets.py` (`GET /api/assets/search`, `POST /api/assets/import`, `POST /api/assets/upload`, `GET /api/assets`, `GET /api/assets/{id}`, `GET /api/assets/{id}/file`) and mounted in `app/api/v1/api.py`.
+    - Updated `openapi.json`.
+  - `M2 Overlay compositing`:
+    - Upgraded `_compile_overlay_track` in `app/services/timeline_compiler.py`:
+      - Supported position presets: `"pip"` (picture-in-picture), `"top_left"`, `"top_right"`, `"bottom_left"`, `"bottom_right"`, `"center"`, and custom `(x, y)` coordinates.
+      - Supported scale parameters (PiP 0.35x width or custom dimensions) and aspect ratio preservation.
+      - Supported video and audio fades: `fade=t=in:st=...:d=...:alpha=1`, `fade=t=out:st=...:d=...:alpha=1`, and `afade`.
+      - Supported static images on overlay tracks via `loop=loop=-1:size=1:start=0`.
+      - Added direct asset ID resolution in `resolve_source_path` querying `media_assets` DB.
+  - `M3 Planner B-roll`:
+    - Upgraded `EditPlannerService._generate_demo_ops` in `app/services/planner_service.py` to extract topic keywords from `VideoIndex` chapters, visuals, or prompt.
+    - Automatically adds an overlay track (`AddTrackOp`) if none exists, and inserts visual B-roll items (`AddItemOp`) timed with crossfades and contextual rationale.
+  - `M4 Audio layers`:
+    - Enhanced audio filter graph in `TimelineCompiler.build_filter_graph`:
+      - Speech stream denoise/band conditioning: `highpass=f=80,lowpass=f=8000`.
+      - Background music ducking under speech using FFmpeg `sidechaincompress=threshold=0.08:ratio=4:attack=50:release=300`.
+      - Master loudness normalization to broadcast/streaming standard using EBU R128 `loudnorm=I=-16:TP=-1.5:LRA=11`.
+  - Added comprehensive test suite in `tests/test_broll_and_audio.py` verifying all 4 milestones end-to-end with real media files, FFmpeg rendering, and database persistence.
+- **Quality Checks**:
+  - `pytest tests/test_broll_and_audio.py`: 5/5 passed in 11.57s.
+  - Full test suite: 174/174 passed across 27 test modules in 215.21s (0 failures, 0 errors).
+### Session: Phase 7 UI Sections 3 Fixes & Sections 4, 5, 6, 7 Editor Page
+- **Objective**:
+  - Address Section 3 fixes: remove hardcoded "★ 8.5" fallback; delete all seeded mock clips from database; provide `tests/generate_real_highlights.py` script to generate real clips without inserting fake DB rows; audit, polish, and verify Shorts page at 640px.
+  - Build Sections 4, 5, 6, and 7 of brief as the Editor page at `/editor/:timelineId`:
+    - Section 4: Top bar (48px) with Logo, breadcrumb, mono "Saved · v12", Undo/Redo icon buttons with tooltips, History button, and primary Export button.
+    - Section 5: Agent panel (320px) with Agent/Transcript/Assets tabs, chat messages, proposed plan card with op tags, Apply plan and Discard actions, and prompt textarea with "⌘ Enter to send" hint.
+    - Section 6: Preview (center on `#0A0B0D`) with vertical 9:16 canvas, animated captions, transport controls, and mono timecode (`00:00:12:08 / 00:00:42:00`).
+    - Section 7: Inspector (280px) displaying selected track range (`V1 · 00:09:10 – 00:21:02`), Colour grade select, Transition select, and Volume slider.
+    - Bottom panel: 360px bordered panel labeled "Timeline" reserved for Section 8.
+  - Implement mock timeline matching T1 schema in `frontend/src/mocks/timeline.ts`.
+  - Implement Zustand store in `frontend/src/store/timelineStore.ts` with local plan application as one undo step.
+  - Desktop-first notice below 1100px.
+  - Audited and polished UI adhering strictly to design tokens, focus rings, labels, and aria-labels.
+- **Implemented**:
+  - `frontend/src/pages/ShortsPage.tsx`: Removed "★ 8.5" fallback; score badge only displays if `scoreFormatted` exists. Fixed mobile layout overflow at 640px.
+  - `tests/generate_real_highlights.py`: Standalone script for user to run highlight detection via `HighlightService.detect_highlights` on any video in DB.
+  - `clipforge.db`: Verified all fake clips removed (0 rows in `clips` table).
+  - `frontend/src/mocks/timeline.ts`: Full T1 timeline JSON with 5 tracks (`CC`, `V2 B-ROLL`, `V1`, `A1 SPEECH`, `A2 MUSIC`) totaling 42,000ms.
+  - `frontend/src/store/timelineStore.ts`: Zustand store managing timeline state, playback, selection, chat messages, proposed plan, local plan application with version bumping (`v12` -> `v13`), single-step undo/redo, and inspector property modifications.
+  - `frontend/src/utils/format.ts`: Added `formatTimecode(ms, fps=30)` producing SMPTE format `HH:MM:SS:FF`.
+  - `frontend/src/pages/EditorPage.tsx` & `EditorPage.css`: Full implementation of top bar (48px), Agent panel (320px), Preview canvas (#0A0B0D), Inspector (280px), and bottom 360px Timeline placeholder.
+  - `frontend/src/App.tsx`: Mounted `/editor/:timelineId` top-level route.
+- **Verification & Quality Checks**:
+  - Browser Verification:
+    - 640px view on Shorts page: clean 1-column layout, zero overflow, empty state formatted properly.
+    - 1440px on Editor page: Top bar, Agent panel with operation badges (`trim`, `add_broll`, `grade`), 9:16 vertical preview with captions, Inspector panel, and bottom 360px Timeline panel render cleanly. Tested "Apply plan" bumping version to `v13` and activating Undo; tested "Undo" restoring `v12` and activating Redo.
+    - 1100px on Editor page: scannable compact view without horizontal overflow.
+    - Below 1100px (1000px): screen gate overlay "Open on a larger screen (min width 1100px) to access the Timeline Editor." renders as required.
+  - Frontend Build: `npm run build` (`tsc -b && vite build`) passed with 0 errors in 1.92s.
+  - Backend Lint: `ruff check app tests` passed with 0 errors.
+  - Backend Type Check: `mypy app` passed with 0 issues across 76 source files.
+
+### Session: Phase 9 (Scale, Measure, Demo) & UI Section 8 (Timeline Component)
+- **Objective**:
+  - Section 8 UI: Build the full interactive Timeline component (Toolbar with Split/Ripple/Snap/Zoom, Time Ruler, INDEX lane with speech/scenes/silence, VIDEO tracks CC/V2/V1, AUDIO tracks A1/A2, linked clips, agent indicators, playhead with drag scrubbing).
+  - S1 Storage abstraction: Local disk by default, MinIO optional. Switching by env var works.
+  - S2 Resumable upload: Tus v1.0.0 protocol. Interrupted upload resumes to completion.
+  - S3 Worker scaling: Separate Celery queues (`rendering`, `transcription`, `indexing`, `default`), scalable worker deployment in `docker-compose.yml`.
+  - S4 Metrics: Telemetry table `task_metrics`, `/api/metrics` for queue wait and render time, benchmark script `scripts/benchmark_render.py` recording numbers in `README.md`.
+  - S5 Demo run: Automated rehearsal script `scripts/demo_run.py` executing all 10 steps end-to-end with zero manual blockers.
+- **Implemented**:
+  - `UI Section 8`:
+    - Created `frontend/src/components/Timeline.tsx` and `frontend/src/components/Timeline.css`.
+    - Implemented Toolbar (Split at Playhead, Ripple Delete, Snapping toggle, Zoom slider 0.5x–3.0x), Time Ruler with millisecond/SMPTE timecode ticks, INDEX lane with visual badges for speech, scenes, and silences, VIDEO tracks (`CC`, `V2 B-ROLL`, `V1`), and AUDIO tracks (`A1 SPEECH`, `A2 MUSIC`).
+    - Added agent highlight pill indicator ("AI Edited") on modified segments, linked selection between video and audio clips, and interactive scrubbing playhead.
+    - Extended Zustand store in `frontend/src/store/timelineStore.ts` with zoom, snapping, `splitAtPlayhead`, and `rippleDelete`.
+    - Integrated `<Timeline />` into `frontend/src/pages/EditorPage.tsx`.
+  - `S1 Storage Abstraction`:
+    - Added storage configuration in `app/config.py` (`STORAGE_BACKEND`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_SECURE`) and `.env.example`.
+    - Implemented `LocalStorageService`, `MinIOStorageService`, and `get_storage()` factory in `app/services/storage_service.py`. Installed `minio>=7.2.0`.
+  - `S2 Resumable Upload (Tus Protocol)`:
+    - Implemented `TusService` in `app/services/tus_service.py` supporting creation, chunk appending, offset verification, metadata decoding, and upload finalization with ffprobe probing.
+    - Implemented standard Tus v1.0.0 REST endpoints in `app/api/v1/endpoints/tus.py` (`OPTIONS`, `POST`, `HEAD`, `PATCH`, `DELETE` on `/api/upload/tus`), mounted in `app/api/v1/api.py`.
+  - `S3 Worker Scaling`:
+    - Configured Celery task queues in `app/tasks/celery_app.py` (`rendering`, `transcription`, `indexing`, `default`) with explicit task routing.
+    - Updated `docker-compose.yml` with dedicated `worker-render` (`replicas: 2`), `worker-general`, and optional `minio` service.
+  - `S4 Metrics`:
+    - Created `TaskMetricModel` (`task_metrics` table) in `app/models/metric.py`, generated Alembic migration `c3cb4047c9fd_create_task_metrics_table.py`.
+    - Implemented `MetricService` in `app/services/metric_service.py`, schemas in `app/schemas/metric.py`, and endpoints `GET /api/metrics` and `POST /api/metrics/record` in `app/api/v1/endpoints/metrics.py`.
+    - Added automatic telemetry recording into `render_clip_task` and `render_timeline_task`.
+    - Authored and ran `scripts/benchmark_render.py` measuring rendering throughput across standard workloads and documented benchmark numbers in `README.md`.
+  - `S5 Demo Run`:
+    - Authored and verified `scripts/demo_run.py` rehearsing 10 steps (Health check, Resumable Tus upload, Video metadata inspection, Footage indexing, Timeline creation, AI Edit Planner, Optimistic concurrency batch apply with undo/redo, 9:16 timeline rendering, Live preview frame extraction, Telemetry metrics).
+    - Upgraded `TimelineCompiler.extract_frame()` with `-strict -1` to allow standard YUV MJPEG encoding.
+- **Verification & Quality Checks**:
+  - `demo_run.py`: All 10 steps passed cleanly (exit code 0).
+  - Tests:
+    - `pytest tests/test_storage.py tests/test_tus.py tests/test_metrics.py`: 10/10 passed in 7.06s.
+    - Full repository test suite: 184/184 passed in 190.20s (100% pass rate across 28 test modules).
+  - Frontend Build: `npm run build` (`tsc -b && vite build`) passed with 0 errors in 2.59s (1964 modules transformed).
+  - Linters & Type Checking:
+    - `ruff check app tests scripts`: All checks passed (0 errors).
+    - `mypy app tests scripts`: Success, no issues found in 119 source files.
+
+
+

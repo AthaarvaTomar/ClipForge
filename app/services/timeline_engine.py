@@ -146,9 +146,7 @@ def apply(
             raise TimelineOperationError("add_item requires 'item'")
 
         new_item = (
-            Item.model_validate(raw_item)
-            if isinstance(raw_item, dict)
-            else new_item_copy(raw_item)
+            Item.model_validate(raw_item) if isinstance(raw_item, dict) else new_item_copy(raw_item)
         )
 
         _, track = _find_track(new_tl, track_id)
@@ -405,11 +403,7 @@ def apply(
                 "ripple_insert requires 'track_id', 'item', and 'insert_start'"
             )
 
-        item_to_insert = (
-            Item.model_validate(raw_item)
-            if isinstance(raw_item, dict)
-            else raw_item
-        )
+        item_to_insert = Item.model_validate(raw_item) if isinstance(raw_item, dict) else raw_item
         item_to_insert = item_to_insert.model_copy(update={"start": insert_start})
         ins_duration = item_to_insert.duration
 
@@ -540,7 +534,6 @@ def apply(
             caption_track = Track(id=track_id, type=TrackType.CAPTION, name="Captions")
             new_tl.tracks.append(caption_track)
             created_track_for_caption = True
-
 
         caption_track.items.append(caption_item)
         caption_track.items.sort(key=lambda itm: itm.start)

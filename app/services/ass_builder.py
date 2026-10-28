@@ -190,7 +190,7 @@ class ASSBuilder:
         primary_color_ass = hex_to_ass_color(self.spec.primary_color)
         highlight_color_ass = hex_to_ass_color(self.spec.highlight_color)
         outline_color_ass = "&H00000000&"  # Solid black outline
-        shadow_color_ass = "&H80000000&"   # Semi-transparent black shadow
+        shadow_color_ass = "&H80000000&"  # Semi-transparent black shadow
 
         # Alignment and vertical margin
         if self.spec.position == "top":

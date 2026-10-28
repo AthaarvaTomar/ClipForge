@@ -296,6 +296,7 @@ Respond STRICTLY with valid JSON:
                 raw_json = caller(prompt, client=client)
                 if raw_json:
                     import json
+
                     parsed = json.loads(raw_json)
                     if "chapters" in parsed and "hook" in parsed and "highlights" in parsed:
                         return parsed
@@ -380,4 +381,3 @@ Respond STRICTLY with valid JSON:
         finally:
             if client is None:
                 http.close()
-

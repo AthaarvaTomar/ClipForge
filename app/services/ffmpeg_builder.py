@@ -34,12 +34,8 @@ GRADE_PRESETS: dict[str, str] = {
         "eq=contrast=1.15:brightness=-0.02:saturation=1.1,"
         "colorbalance=rs=0.04:gs=0.0:bs=-0.04:rm=-0.02:gm=0.02:bm=0.05"
     ),
-    "warm": (
-        "colorbalance=rs=0.08:gs=0.02:bs=-0.08:rm=0.08:gm=0.02:bm=-0.08,eq=saturation=1.15"
-    ),
-    "cool": (
-        "colorbalance=rs=-0.08:gs=0.0:bs=0.08:rm=-0.08:gm=0.0:bm=0.08,eq=saturation=1.05"
-    ),
+    "warm": ("colorbalance=rs=0.08:gs=0.02:bs=-0.08:rm=0.08:gm=0.02:bm=-0.08,eq=saturation=1.15"),
+    "cool": ("colorbalance=rs=-0.08:gs=0.0:bs=0.08:rm=-0.08:gm=0.0:bm=0.08,eq=saturation=1.05"),
     "vibrant": "eq=contrast=1.2:saturation=1.3:brightness=0.02",
     "bw": "hue=s=0,eq=contrast=1.2:brightness=0.0",
 }
@@ -119,7 +115,9 @@ def build_cuts_filter(
         lines.append(f"[0:v]trim=start={cut.start}:end={cut.end},setpts=PTS-STARTPTS[v_cut_{i}]")
         # Audio trim
         if has_audio:
-            lines.append(f"[0:a]atrim=start={cut.start}:end={cut.end},asetpts=PTS-STARTPTS[a_cut_{i}]")
+            lines.append(
+                f"[0:a]atrim=start={cut.start}:end={cut.end},asetpts=PTS-STARTPTS[a_cut_{i}]"
+            )
         else:
             duration = cut.end - cut.start
             lines.append(
@@ -210,9 +208,7 @@ def build_reframe_filter(
             f"[fg_{in_label}]"
         )
         # Overlay foreground centered on blurred background
-        lines.append(
-            f"[bg_{in_label}][fg_{in_label}]overlay=(W-w)/2:(H-h)/2[{out_label}]"
-        )
+        lines.append(f"[bg_{in_label}][fg_{in_label}]overlay=(W-w)/2:(H-h)/2[{out_label}]")
         return lines
 
     # Default strategy: "crop" (scale to increase and crop to target)
@@ -242,9 +238,7 @@ def build_grade_filter(
         filter_steps.append(GRADE_PRESETS[grade.preset])
 
     # 2. Custom brightness/contrast/saturation adjustments if modified from defaults
-    is_custom = (
-        grade.brightness != 0.0 or grade.contrast != 1.0 or grade.saturation != 1.0
-    )
+    is_custom = grade.brightness != 0.0 or grade.contrast != 1.0 or grade.saturation != 1.0
     if is_custom:
         filter_steps.append(
             f"eq=brightness={grade.brightness:.3f}:"
@@ -400,29 +394,31 @@ class FFmpegBuilder:
         if with_progress:
             cmd.extend(["-progress", "pipe:1", "-nostats"])
 
-        cmd.extend([
-            "-i",
-            str(self.input_path),
-            "-filter_complex",
-            filter_complex,
-            "-map",
-            f"[{final_v}]",
-            "-map",
-            f"[{final_a}]",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "22",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            str(self.output_path),
-        ])
+        cmd.extend(
+            [
+                "-i",
+                str(self.input_path),
+                "-filter_complex",
+                filter_complex,
+                "-map",
+                f"[{final_v}]",
+                "-map",
+                f"[{final_a}]",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "22",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                str(self.output_path),
+            ]
+        )
         return cmd
 
     def run(
@@ -432,8 +428,6 @@ class FFmpegBuilder:
     ) -> Path:
         """Execute FFmpeg render with optional progress callback and failure cleanup."""
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-
-
 
         if on_progress is None:
             cmd = self.build_command(with_progress=False)
@@ -563,4 +557,3 @@ def extract_preview_frame(
     if output_file is not None:
         return Path(output_file).read_bytes()
     return res.stdout
-

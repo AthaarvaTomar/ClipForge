@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.core.database import SessionLocal
 from app.models.clip import Clip
+from app.models.job import Job
 from app.models.transcript import Transcript
 from app.models.video import Video
 from app.schemas.edit_spec import EditSpec
@@ -21,6 +24,7 @@ from app.services.ffmpeg_builder import (
     get_target_resolution,
 )
 from app.services.job_service import JobService
+from app.services.metric_service import MetricService
 from app.tasks.celery_app import celery_app
 
 
@@ -39,6 +43,7 @@ def render_clip_task(
             pass
 
     db = SessionLocal()
+    start_time = time.time()
     tmp_ass: Path | None = None
     output_path: Path | None = None
 
@@ -98,9 +103,7 @@ def render_clip_task(
         # Generate subtitles if captions are enabled
         subtitle_path: Path | None = None
         if edit_spec.captions.enabled:
-            transcript = db.scalar(
-                select(Transcript).where(Transcript.video_id == clip.video_id)
-            )
+            transcript = db.scalar(select(Transcript).where(Transcript.video_id == clip.video_id))
             if transcript and transcript.words:
                 ass_builder = ASSBuilder(
                     caption_spec=edit_spec.captions,
@@ -143,7 +146,6 @@ def render_clip_task(
             on_progress=on_render_progress,
         )
 
-
         # Update clip and job state
         clip.output_path = str(rendered_file.resolve())
         clip.status = "COMPLETED"
@@ -158,6 +160,29 @@ def render_clip_task(
             progress=100,
             status="COMPLETED",
             result_data=result_data,
+        )
+
+        # Record telemetry metrics
+        execution_time_ms = (time.time() - start_time) * 1000
+        wait_time_ms = 0.0
+        job_record = db.scalar(select(Job).where(Job.id == job_id))
+        if job_record and job_record.created_at:
+            created_utc = job_record.created_at
+            if created_utc.tzinfo is None:
+                created_utc = created_utc.replace(tzinfo=UTC)
+            wait_time_ms = max(
+                0.0,
+                (datetime.now(UTC) - created_utc).total_seconds() * 1000 - execution_time_ms,
+            )
+
+        MetricService.record_metric(
+            db=db,
+            task_id=getattr(self.request, "id", None) or job_id,
+            task_name="render_clip_task",
+            queue_name="rendering",
+            wait_time_ms=wait_time_ms,
+            execution_time_ms=execution_time_ms,
+            input_duration_seconds=clip.end_time - clip.start_time,
         )
 
         return result_data

@@ -45,9 +45,7 @@ def sample_video(db_session: Session) -> Video:
     return video
 
 
-def test_create_timeline_and_initial_snapshot(
-    db_session: Session, sample_video: Video
-) -> None:
+def test_create_timeline_and_initial_snapshot(db_session: Session, sample_video: Video) -> None:
     """Creating a timeline sets version=1, current_seq=0, and writes initial version snapshot."""
     created = TimelineService.create_timeline(
         db_session,
@@ -64,18 +62,18 @@ def test_create_timeline_and_initial_snapshot(
     assert model.version == 1
 
     # Check initial snapshot
-    snapshots = db_session.execute(
-        select(TimelineVersionModel).where(
-            TimelineVersionModel.timeline_id == created.id
+    snapshots = (
+        db_session.execute(
+            select(TimelineVersionModel).where(TimelineVersionModel.timeline_id == created.id)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(snapshots) == 1
     assert snapshots[0].version == 1
 
 
-def test_grouped_apply_and_single_step_undo(
-    db_session: Session, sample_video: Video
-) -> None:
+def test_grouped_apply_and_single_step_undo(db_session: Session, sample_video: Video) -> None:
     """Ops sent together share a group_id, so an agent action is one single undo step."""
     timeline = TimelineService.create_timeline(
         db_session,
@@ -154,11 +152,15 @@ def test_grouped_apply_and_single_step_undo(
     assert len(tl_after_agent.tracks[0].items) == 2
 
     # Check that both agent ops share the exact same group_id in DB
-    ops_in_db = db_session.execute(
-        select(TimelineOpModel)
-        .where(TimelineOpModel.timeline_id == timeline.id)
-        .order_by(TimelineOpModel.seq.asc())
-    ).scalars().all()
+    ops_in_db = (
+        db_session.execute(
+            select(TimelineOpModel)
+            .where(TimelineOpModel.timeline_id == timeline.id)
+            .order_by(TimelineOpModel.seq.asc())
+        )
+        .scalars()
+        .all()
+    )
     assert len(ops_in_db) == 4
     # Ops 3 and 4 are from agent and share group_id
     assert ops_in_db[2].group_id == ops_in_db[3].group_id
@@ -194,10 +196,7 @@ def test_grouped_apply_and_single_step_undo(
     assert redone_tracks == agent_tracks
 
 
-
-def test_redo_stack_cleared_on_new_op(
-    db_session: Session, sample_video: Video
-) -> None:
+def test_redo_stack_cleared_on_new_op(db_session: Session, sample_video: Video) -> None:
     """A new operation applied after an undo clears all subsequent ops from the redo stack."""
     timeline = TimelineService.create_timeline(
         db_session,
@@ -251,12 +250,16 @@ def test_redo_stack_cleared_on_new_op(
     assert model.current_seq == 1
 
     # Verify Op 2 is currently in redo stack (seq=2 exists in timeline_ops)
-    future_ops = db_session.execute(
-        select(TimelineOpModel).where(
-            TimelineOpModel.timeline_id == timeline.id,
-            TimelineOpModel.seq > model.current_seq,
+    future_ops = (
+        db_session.execute(
+            select(TimelineOpModel).where(
+                TimelineOpModel.timeline_id == timeline.id,
+                TimelineOpModel.seq > model.current_seq,
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(future_ops) == 1
 
     # Now apply a NEW operation (Op 3: add audio track)
@@ -277,12 +280,16 @@ def test_redo_stack_cleared_on_new_op(
     # Verify redo stack was cleared: no ops exist with seq > current_seq
     model = TimelineService.get_timeline_model(db_session, timeline.id)
     assert model.current_seq == 2
-    cleared_ops = db_session.execute(
-        select(TimelineOpModel).where(
-            TimelineOpModel.timeline_id == timeline.id,
-            TimelineOpModel.seq > model.current_seq,
+    cleared_ops = (
+        db_session.execute(
+            select(TimelineOpModel).where(
+                TimelineOpModel.timeline_id == timeline.id,
+                TimelineOpModel.seq > model.current_seq,
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(cleared_ops) == 0
 
     # Calling redo does nothing because redo stack was cleared
@@ -294,9 +301,7 @@ def test_redo_stack_cleared_on_new_op(
     assert tl_after_redo.version == 5  # No op reapplied, version unchanged
 
 
-def test_optimistic_concurrency_409_conflict(
-    db_session: Session, sample_video: Video
-) -> None:
+def test_optimistic_concurrency_409_conflict(db_session: Session, sample_video: Video) -> None:
     """Mismatch in expected_version raises TimelineVersionConflictError with current version."""
     timeline = TimelineService.create_timeline(
         db_session,
@@ -348,11 +353,13 @@ def test_timeline_snapshots_every_n_ops(
         source_duration_ms=60000,
     )
     # Starts with initial snapshot at version 1
-    initial_snapshots = db_session.execute(
-        select(TimelineVersionModel).where(
-            TimelineVersionModel.timeline_id == timeline.id
+    initial_snapshots = (
+        db_session.execute(
+            select(TimelineVersionModel).where(TimelineVersionModel.timeline_id == timeline.id)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(initial_snapshots) == 1
 
     # Apply 1 op (current_seq=1, no snapshot yet)
@@ -362,11 +369,13 @@ def test_timeline_snapshots_every_n_ops(
         ops=[{"type": "add_track", "track_id": "trk_1", "track_type": "video"}],
         expected_version=1,
     )
-    snapshots_after_1 = db_session.execute(
-        select(TimelineVersionModel).where(
-            TimelineVersionModel.timeline_id == timeline.id
+    snapshots_after_1 = (
+        db_session.execute(
+            select(TimelineVersionModel).where(TimelineVersionModel.timeline_id == timeline.id)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(snapshots_after_1) == 1
 
     # Apply 1 more op (current_seq=2, crosses multiple of 2 -> snapshot created!)
@@ -388,11 +397,13 @@ def test_timeline_snapshots_every_n_ops(
         ],
         expected_version=2,
     )
-    snapshots_after_2 = db_session.execute(
-        select(TimelineVersionModel).where(
-            TimelineVersionModel.timeline_id == timeline.id
+    snapshots_after_2 = (
+        db_session.execute(
+            select(TimelineVersionModel).where(TimelineVersionModel.timeline_id == timeline.id)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(snapshots_after_2) == 2
     assert snapshots_after_2[1].version == 3
 
@@ -407,9 +418,7 @@ def test_timeline_snapshots_every_n_ops(
     assert len(restored.tracks) == 0  # Version 1 had 0 tracks
 
 
-def test_timeline_state_always_matches_log(
-    db_session: Session, sample_video: Video
-) -> None:
+def test_timeline_state_always_matches_log(db_session: Session, sample_video: Video) -> None:
     """The timeline state must always match replaying ops 1..current_seq from the database."""
     timeline = TimelineService.create_timeline(
         db_session,
@@ -479,14 +488,18 @@ def test_timeline_state_always_matches_log(
     current_schema = model.to_schema()
 
     # Replay all logged ops from 1..current_seq starting from a blank timeline
-    active_ops = db_session.execute(
-        select(TimelineOpModel)
-        .where(
-            TimelineOpModel.timeline_id == timeline.id,
-            TimelineOpModel.seq <= model.current_seq,
+    active_ops = (
+        db_session.execute(
+            select(TimelineOpModel)
+            .where(
+                TimelineOpModel.timeline_id == timeline.id,
+                TimelineOpModel.seq <= model.current_seq,
+            )
+            .order_by(TimelineOpModel.seq.asc())
         )
-        .order_by(TimelineOpModel.seq.asc())
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     replayed = Timeline(
         id=timeline.id,
@@ -502,7 +515,6 @@ def test_timeline_state_always_matches_log(
     current_tracks = current_schema.model_dump(mode="json")["tracks"]
     replayed_tracks = replayed.model_dump(mode="json")["tracks"]
     assert current_tracks == replayed_tracks
-
 
 
 def test_timeline_not_found_raises(db_session: Session) -> None:

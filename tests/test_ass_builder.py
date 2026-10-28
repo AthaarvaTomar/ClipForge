@@ -34,10 +34,20 @@ def sample_video(tmp_path_factory: pytest.TempPathFactory) -> Generator[Path, No
     cmd = [
         ffmpeg_bin,
         "-y",
-        "-f", "lavfi", "-i", "testsrc=duration=3.0:size=1280x720:rate=30",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=3.0:sample_rate=44100",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=3.0:size=1280x720:rate=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=3.0:sample_rate=44100",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         str(out_video),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
@@ -99,8 +109,8 @@ def test_remap_words_to_cuts_multi_cut_with_transition() -> None:
         {"word": "Second", "start": 5.0, "end": 5.6},
     ]
     cuts = [
-        CutSegment(start=0.5, end=2.0),   # Length 1.5s (offset 0.0 -> [0.0, 1.5])
-        CutSegment(start=4.5, end=6.5),   # Length 2.0s
+        CutSegment(start=0.5, end=2.0),  # Length 1.5s (offset 0.0 -> [0.0, 1.5])
+        CutSegment(start=4.5, end=6.5),  # Length 2.0s
     ]
     # Transition with 0.2s duration: cut 1 start offset = 1.5 - 0.2 = 1.3s
     trans = TransitionSpec(type="fade", duration=0.2)

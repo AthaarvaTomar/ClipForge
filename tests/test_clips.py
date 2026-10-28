@@ -206,9 +206,7 @@ def test_create_clip_invalid_cut_exceeds_video_duration(
     assert "exceeds video duration" in resp.json()["detail"].lower()
 
 
-def test_create_clip_invalid_spec_returns_422(
-    client: TestClient, test_video_id: str
-) -> None:
+def test_create_clip_invalid_spec_returns_422(client: TestClient, test_video_id: str) -> None:
     # Cut end before start
     payload = {
         "video_id": test_video_id,
@@ -302,9 +300,7 @@ def test_patch_clip_updates(client: TestClient, test_video_id: str) -> None:
     assert updated_data["edit_spec"]["grade"]["preset"] == "warm"
 
 
-def test_patch_clip_invalid_times_rejected(
-    client: TestClient, test_video_id: str
-) -> None:
+def test_patch_clip_invalid_times_rejected(client: TestClient, test_video_id: str) -> None:
     init_resp = client.post(
         "/api/clips",
         json={

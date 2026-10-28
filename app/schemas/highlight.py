@@ -78,10 +78,7 @@ def parse_and_validate_highlights_json(raw_text: str) -> list[HighlightMoment]:
     if isinstance(data, dict):
         # Could be {"highlights": [...]} or {"clips": [...]} or {"moments": [...]}
         raw_list = (
-            data.get("highlights")
-            or data.get("clips")
-            or data.get("moments")
-            or data.get("data")
+            data.get("highlights") or data.get("clips") or data.get("moments") or data.get("data")
         )
         if raw_list is None:
             # If the dict is itself a single moment, wrap it

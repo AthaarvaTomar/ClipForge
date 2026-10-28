@@ -29,9 +29,7 @@ def run_dummy_task(
         pct = int((step / steps) * 100)
         status = "PROCESSING" if pct < 100 else "COMPLETED"
         result_payload = (
-            {"steps_completed": step, "message": "Dummy job completed"}
-            if pct == 100
-            else None
+            {"steps_completed": step, "message": "Dummy job completed"} if pct == 100 else None
         )
 
         JobService.update_progress(

@@ -34,6 +34,7 @@ def index_video_task(
 
     db = SessionLocal()
     try:
+
         def on_index_progress(pct: int, msg: str) -> None:
             JobService.update_progress(job_id=job_id, progress=pct, status="PROCESSING")
             if getattr(self.request, "id", None):

@@ -113,12 +113,7 @@ def list_videos(
     db: Session = Depends(get_db),
 ) -> VideoListResponse:
     total = db.scalar(select(func.count(Video.id))) or 0
-    query = (
-        select(Video)
-        .order_by(Video.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    )
+    query = select(Video).order_by(Video.created_at.desc()).offset(offset).limit(limit)
     videos = list(db.scalars(query).all())
     return VideoListResponse(
         videos=[VideoResponse.model_validate(v) for v in videos],

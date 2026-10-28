@@ -8,6 +8,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin, utc_now
 
 if TYPE_CHECKING:
+    from app.models.plan import EditPlanModel
     from app.models.video import Video
 
 
@@ -43,7 +44,6 @@ class TimelineModel(Base, TimestampMixin):
 
         return TimelineSchema.model_validate(self.data)
 
-
     # Relationships
     video: Mapped["Video"] = relationship("Video", back_populates="timelines")
     ops: Mapped[list["TimelineOpModel"]] = relationship(
@@ -58,15 +58,19 @@ class TimelineModel(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="TimelineVersionModel.version",
     )
+    plans: Mapped[list["EditPlanModel"]] = relationship(
+        "EditPlanModel",
+        back_populates="timeline",
+        cascade="all, delete-orphan",
+        order_by="EditPlanModel.created_at.desc()",
+    )
 
 
 class TimelineOpModel(Base):
     """Model representing an atomic timeline operation in the operation log."""
 
     __tablename__ = "timeline_ops"
-    __table_args__ = (
-        UniqueConstraint("timeline_id", "seq", name="uq_timeline_ops_timeline_seq"),
-    )
+    __table_args__ = (UniqueConstraint("timeline_id", "seq", name="uq_timeline_ops_timeline_seq"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     timeline_id: Mapped[str] = mapped_column(

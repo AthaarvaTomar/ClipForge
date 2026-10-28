@@ -15,6 +15,7 @@ from app.schemas.edit_spec import (
 )
 from app.schemas.highlight import HighlightMoment, HighlightResponse
 from app.schemas.job import DummyJobRequest, JobBase, JobResponse
+from app.schemas.plan import ApplyPlanRequest, PlanRequest, PlanResponse
 from app.schemas.timeline import (
     Item,
     ItemTransition,
@@ -22,10 +23,33 @@ from app.schemas.timeline import (
     Track,
     TrackType,
 )
+from app.schemas.timeline_ops import (
+    OP_MODEL_MAP,
+    AddCaptionOp,
+    AddItemOp,
+    AddTrackOp,
+    BaseTimelineOp,
+    MoveOp,
+    RemoveItemOp,
+    RemoveTrackOp,
+    RippleDeleteOp,
+    SetGradeOp,
+    SetTransitionOp,
+    SetVolumeOp,
+    SplitOp,
+    TimelineOp,
+    TrimOp,
+    UpdateCaptionOp,
+)
 from app.schemas.transcript import TranscriptResponse, WordTimestamp
 from app.schemas.video import VideoBase, VideoListResponse, VideoResponse
 
 __all__ = [
+    "AddCaptionOp",
+    "AddItemOp",
+    "AddTrackOp",
+    "ApplyPlanRequest",
+    "BaseTimelineOp",
     "CaptionSpec",
     "ClipBase",
     "ClipCreate",
@@ -42,12 +66,26 @@ __all__ = [
     "ItemTransition",
     "JobBase",
     "JobResponse",
+    "MoveOp",
+    "OP_MODEL_MAP",
+    "PlanRequest",
+    "PlanResponse",
     "ReframeSpec",
+    "RemoveItemOp",
+    "RemoveTrackOp",
+    "RippleDeleteOp",
+    "SetGradeOp",
+    "SetTransitionOp",
+    "SetVolumeOp",
+    "SplitOp",
     "Timeline",
+    "TimelineOp",
     "Track",
     "TrackType",
     "TranscriptResponse",
     "TransitionSpec",
+    "TrimOp",
+    "UpdateCaptionOp",
     "VideoBase",
     "VideoListResponse",
     "VideoResponse",

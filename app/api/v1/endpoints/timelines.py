@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.job import Job
 from app.models.video import Video
 from app.schemas.job import JobResponse
+from app.schemas.plan import ApplyPlanRequest, PlanRequest, PlanResponse
 from app.schemas.timeline import Timeline
 from app.schemas.timeline_api import (
     TimelineCreateRequest,
@@ -20,8 +21,10 @@ from app.schemas.timeline_api import (
     TimelineUndoRequest,
 )
 from app.services.job_service import JobService
+from app.services.planner_service import EditPlannerService
 from app.services.timeline_compiler import TimelineCompiler
 from app.services.timeline_service import TimelineService
+from app.tasks.plan_task import generate_plan_task
 from app.tasks.timeline_render_task import render_timeline_task
 
 router = APIRouter(prefix="/timelines", tags=["Timelines"])
@@ -343,3 +346,103 @@ def get_timeline_frame(
 
     frame_bytes = compiler.extract_frame(timestamp=target_time)
     return Response(content=frame_bytes, media_type="image/jpeg")
+
+
+@router.post(
+    "/{id}/plan",
+    response_model=PlanResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate an AI edit plan for the timeline",
+)
+def create_edit_plan(
+    payload: PlanRequest,
+    id: str = Path(..., description="Timeline ID"),
+    db: Session = Depends(get_db),
+) -> PlanResponse:
+    """Generate an AI editing plan for a timeline from a natural language prompt (Milestone P3).
+
+    - If dry_run is False (default), creates an asynchronous background Job and returns plan.
+    - If dry_run is True, validates and returns the plan immediately without queueing
+      a background task.
+    """
+    model = TimelineService.get_timeline_model(db, id)
+
+    if payload.dry_run:
+        rationale, validated_ops = EditPlannerService.generate_plan(
+            db=db,
+            timeline_id=id,
+            prompt=payload.prompt,
+        )
+        plan = EditPlannerService.create_plan_record(
+            db=db,
+            timeline_id=id,
+            prompt=payload.prompt,
+        )
+        plan.rationale = rationale
+        plan.ops = validated_ops
+        plan.status = "VALIDATED"
+        db.commit()
+        db.refresh(plan)
+        return PlanResponse.model_validate(plan)
+
+    job = JobService.create_job(
+        db=db,
+        job_type="TIMELINE_PLAN",
+        video_id=model.video_id,
+        initial_progress=0,
+    )
+    plan = EditPlannerService.create_plan_record(
+        db=db,
+        timeline_id=id,
+        prompt=payload.prompt,
+        job_id=job.id,
+    )
+
+    generate_plan_task.delay(plan_id=plan.id, job_id=job.id)
+    # Refresh plan to get accurate status
+    db.refresh(plan)
+    return PlanResponse.model_validate(plan)
+
+
+@router.get(
+    "/{id}/plan/{plan_id}",
+    response_model=PlanResponse,
+    summary="Get AI edit plan status and operations",
+)
+def get_edit_plan(
+    id: str = Path(..., description="Timeline ID"),
+    plan_id: str = Path(..., description="Edit Plan ID"),
+    db: Session = Depends(get_db),
+) -> PlanResponse:
+    """Retrieve an edit plan by its ID."""
+    plan = EditPlannerService.get_plan(db, plan_id)
+    if plan.timeline_id != id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan '{plan_id}' does not belong to timeline '{id}'",
+        )
+    return PlanResponse.model_validate(plan)
+
+
+@router.post(
+    "/{id}/plan/{plan_id}/apply",
+    response_model=Timeline,
+    status_code=status.HTTP_200_OK,
+    summary="Apply an AI edit plan onto the timeline",
+)
+def apply_edit_plan(
+    payload: ApplyPlanRequest,
+    id: str = Path(..., description="Timeline ID"),
+    plan_id: str = Path(..., description="Edit Plan ID"),
+    db: Session = Depends(get_db),
+) -> Timeline:
+    """Apply all plan operations as a single undo group with actor='agent' (Milestone P5).
+
+    One undo reverts the entire agent plan.
+    """
+    return EditPlannerService.apply_plan(
+        db=db,
+        timeline_id=id,
+        plan_id=plan_id,
+        expected_version=payload.expected_version,
+    )

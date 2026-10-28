@@ -261,17 +261,13 @@ def test_timeline_cascade_deletion(db_session: Session) -> None:
     )
     assert (
         db_session.execute(
-            select(TimelineOpModel).where(
-                TimelineOpModel.timeline_id == timeline_row.id
-            )
+            select(TimelineOpModel).where(TimelineOpModel.timeline_id == timeline_row.id)
         ).scalar_one_or_none()
         is None
     )
     assert (
         db_session.execute(
-            select(TimelineVersionModel).where(
-                TimelineVersionModel.timeline_id == timeline_row.id
-            )
+            select(TimelineVersionModel).where(TimelineVersionModel.timeline_id == timeline_row.id)
         ).scalar_one_or_none()
         is None
     )

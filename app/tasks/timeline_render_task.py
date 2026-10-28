@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,11 +12,13 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.core.database import SessionLocal
+from app.models.job import Job
 from app.models.timeline import TimelineModel, TimelineVersionModel
 from app.models.video import Video
 from app.schemas.timeline import Timeline
 from app.services.ffmpeg_builder import FFmpegBuilderError
 from app.services.job_service import JobService
+from app.services.metric_service import MetricService
 from app.services.timeline_compiler import TimelineCompiler
 from app.tasks.celery_app import celery_app
 
@@ -35,6 +39,7 @@ def render_timeline_task(
             pass
 
     db = SessionLocal()
+    start_time = time.time()
     output_path: Path | None = None
 
     try:
@@ -137,6 +142,31 @@ def render_timeline_task(
                 self.update_state(state="COMPLETED", meta={"progress": 100})
             except Exception:
                 pass
+
+        # Record telemetry metrics
+        execution_time_ms = (time.time() - start_time) * 1000
+        wait_time_ms = 0.0
+        job_record = db.scalar(select(Job).where(Job.id == job_id))
+        if job_record and job_record.created_at:
+            created_utc = job_record.created_at
+            if created_utc.tzinfo is None:
+                created_utc = created_utc.replace(tzinfo=UTC)
+            wait_time_ms = max(
+                0.0,
+                (datetime.now(UTC) - created_utc).total_seconds() * 1000 - execution_time_ms,
+            )
+
+        duration_sec = (timeline.duration / 1000.0) if getattr(timeline, "duration", None) else None
+
+        MetricService.record_metric(
+            db=db,
+            task_id=getattr(self.request, "id", None) or job_id,
+            task_name="render_timeline_task",
+            queue_name="rendering",
+            wait_time_ms=wait_time_ms,
+            execution_time_ms=execution_time_ms,
+            input_duration_seconds=duration_sec,
+        )
 
         return result_payload
 

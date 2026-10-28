@@ -106,9 +106,7 @@ def test_crud_operations(db_session: Session) -> None:
     assert job.status == "PROCESSING"
 
     # 5. Read back via query
-    read_video = db_session.execute(
-        select(Video).where(Video.id == video.id)
-    ).scalar_one()
+    read_video = db_session.execute(select(Video).where(Video.id == video.id)).scalar_one()
     assert len(read_video.transcripts) == 1
     assert len(read_video.clips) == 1
     assert len(read_video.jobs) == 1
@@ -119,7 +117,7 @@ def test_crud_operations(db_session: Session) -> None:
     db_session.commit()
 
     # Verify cascade delete
-    remaining_clips = db_session.execute(
-        select(Clip).where(Clip.video_id == video.id)
-    ).scalars().all()
+    remaining_clips = (
+        db_session.execute(select(Clip).where(Clip.video_id == video.id)).scalars().all()
+    )
     assert len(remaining_clips) == 0
