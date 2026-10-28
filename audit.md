@@ -2,6 +2,26 @@
 
 ## Session Log
 
+### Session: Phase 7 Full Frontend Wiring & Verification (E1–E9 & V1–V9)
+- **Objective**: Complete end-to-end frontend integration, replace mock layers with real backend API interactions, and verify all Phase 7 requirements (E1 through E9) against the ClipForge complete frontend specification.
+- **Implemented**:
+  - `frontend/src/api/types.ts`: Added TypeScript interfaces for `TimelineResponse`, `TimelineTrack`, `TimelineItem`, `TimelineOpsRequest`, `TimelineHistoryResponse`, `PlanResponse`, `PlanOperation`, and `WaveformResponse`.
+  - `frontend/src/api/client.ts`: Added typed API methods for `api.timelines` (create, get, applyOps, undo, redo, history, restore, render, cancel, download, frame, plan, getPlan, applyPlan, connectWebSocket), `api.clips.getTimeline` / `convertTimeline`, and `api.videos.uploadTus` implementing the Tus 1.0 resumable chunked protocol.
+  - `app/main.py`: Updated `CORSMiddleware` with `expose_headers` (`Upload-Offset`, `Tus-Resumable`, `Location`, `Video-Id`, etc.) to support browser resumable uploads.
+  - `app/api/v1/endpoints/timelines.py`: Added live WebSocket push broadcasting (`OP_APPLIED`) when user applies batch operations, undos, redos, or restores a version.
+  - `frontend/src/pages/ProjectsPage.tsx`: Integrated resumable chunked upload via `api.videos.uploadTus` with real progress feedback and validation.
+  - `frontend/src/store/timelineStore.ts`: Wired real server timeline loading (`/api/timelines/:id` and `/api/clips/:id/timeline`), batch op queuing, optimistic updates, 409 conflict reconciliation with status notices, live WebSocket connection, and synchronized linked A/V operations.
+  - `frontend/src/components/Timeline.tsx`: Implemented Razor tool and 'C' keyboard shortcut, Delete/Shift+Delete keys, drag to trim start and end, drag to move with snapping to playhead, clip boundaries, and 1-second ticks, 3px blue edge for agent edits, and viewport virtualization.
+  - `frontend/src/components/Timeline.css`: Aligned with design tokens: playhead (`#F2555A`), accent (`#3F6BF0`), track fills and borders, and 3px blue edge (`box-shadow: inset 3px 0 0 #3F6BF0`).
+  - `frontend/src/pages/EditorPage.tsx`: Wired live History Modal with version snapshots and restore capability, Export Dialog with render job polling and download link, proxy video sequencing player, and backend frame grade check endpoint.
+  - `frontend/src/pages/EditorPage.css`: Added modal overlays and progress bar styling.
+- **Verification**:
+  - `npm run build` (`tsc -b && vite build`): Built in 2.81s with 0 errors across 1,964 modules.
+  - `ruff check app tests`: All checks passed.
+  - `mypy app`: Success, 0 issues across 83 source files.
+  - `pytest`: All test suites (`test_timeline_api.py`, `test_timeline_service.py`, `test_tus.py`, `test_planner.py`, `test_health.py`) passed.
+
+
 ### Session: Task A1 Scaffold & Cleanup
 - **Objective**: Scaffold Python backend, setup virtual environment, create configuration, docker-compose for Redis, `/health` endpoint, and clean up obsolete TypeScript/Node repository files.
 - **Implemented**:

@@ -10,6 +10,11 @@ import type {
   TranscriptResponse,
   VideoListResponse,
   VideoResponse,
+  TimelineResponse,
+  TimelineOpsRequest,
+  TimelineHistoryResponse,
+  PlanResponse,
+  WaveformResponse,
 } from './types'
 
 export class ApiError extends Error {
@@ -157,6 +162,16 @@ export class ApiClient {
       })
     },
 
+    getProxyUrl: (videoId: string): string => {
+      return `${this.baseUrl}/api/videos/${encodeURIComponent(videoId)}/proxy`
+    },
+
+    getWaveform: async (videoId: string): Promise<WaveformResponse> => {
+      return this.request<WaveformResponse>(`/api/videos/${encodeURIComponent(videoId)}/waveform`, {
+        method: 'GET',
+      })
+    },
+
     upload: async (
       file: File,
       onProgress?: (percent: number) => void,
@@ -227,6 +242,103 @@ export class ApiClient {
         formData.append('file', file)
         xhr.send(formData)
       })
+    },
+
+    uploadTus: async (
+      file: File,
+      onProgress?: (percent: number) => void,
+    ): Promise<VideoResponse> => {
+      const b64EncodeUnicode = (str: string) => {
+        return btoa(
+          encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+            String.fromCharCode(parseInt(p1, 16))
+          )
+        )
+      }
+      const meta = [
+        `filename ${b64EncodeUnicode(file.name)}`,
+        `filetype ${b64EncodeUnicode(file.type || 'video/mp4')}`,
+      ].join(',')
+
+      // Step 1: POST to create upload
+      const createHeaders = new Headers()
+      createHeaders.set('Tus-Resumable', '1.0.0')
+      createHeaders.set('Upload-Length', String(file.size))
+      createHeaders.set('Upload-Metadata', meta)
+      if (this.apiKey) {
+        createHeaders.set('X-API-Key', this.apiKey)
+      }
+
+      const postRes = await fetch(`${this.baseUrl}/api/upload/tus`, {
+        method: 'POST',
+        headers: createHeaders,
+      })
+
+      if (!postRes.ok) {
+        throw new ApiError(`Failed to initiate tus upload: HTTP ${postRes.status}`, postRes.status)
+      }
+
+      const location = postRes.headers.get('Location')
+      if (!location) {
+        throw new ApiError('Tus upload creation did not return a Location header', 500)
+      }
+      const uploadUrl = location.startsWith('http') ? location : `${this.baseUrl}${location}`
+
+      // Step 2: Upload chunks (2MB)
+      const chunkSize = 2 * 1024 * 1024
+      let offset = 0
+      let videoId: string | null = null
+
+      while (offset < file.size) {
+        const nextOffset = Math.min(offset + chunkSize, file.size)
+        const chunk = file.slice(offset, nextOffset)
+
+        const patchHeaders = new Headers()
+        patchHeaders.set('Tus-Resumable', '1.0.0')
+        patchHeaders.set('Upload-Offset', String(offset))
+        patchHeaders.set('Content-Type', 'application/offset+octet-stream')
+        if (this.apiKey) {
+          patchHeaders.set('X-API-Key', this.apiKey)
+        }
+
+        const patchRes = await fetch(uploadUrl, {
+          method: 'PATCH',
+          headers: patchHeaders,
+          body: chunk,
+        })
+
+        if (!patchRes.ok) {
+          throw new ApiError(`Tus chunk upload failed: HTTP ${patchRes.status}`, patchRes.status)
+        }
+
+        const newOffsetHeader = patchRes.headers.get('Upload-Offset')
+        if (newOffsetHeader) {
+          offset = parseInt(newOffsetHeader, 10)
+        } else {
+          offset = nextOffset
+        }
+
+        const vId = patchRes.headers.get('Video-Id')
+        if (vId) {
+          videoId = vId
+        }
+
+        if (onProgress) {
+          const percent = Math.min(100, Math.round((offset / file.size) * 100))
+          onProgress(percent)
+        }
+      }
+
+      if (videoId) {
+        return this.videos.get(videoId)
+      }
+
+      // Fallback: list videos and find matching filename
+      const list = await this.videos.list({ limit: 5 })
+      const found = list.videos.find((v) => v.filename === file.name)
+      if (found) return found
+      if (list.videos.length > 0) return list.videos[0]
+      throw new ApiError('Video upload completed but could not resolve video metadata', 500)
     },
   }
 
@@ -322,6 +434,20 @@ export class ApiClient {
         method: 'DELETE',
       })
     },
+
+    getTimeline: async (clipId: string): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/clips/${encodeURIComponent(clipId)}/timeline`,
+        { method: 'GET' }
+      )
+    },
+
+    convertTimeline: async (clipId: string): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/clips/${encodeURIComponent(clipId)}/timeline`,
+        { method: 'POST' }
+      )
+    },
   }
 
   // --- 7. Render ---
@@ -346,6 +472,195 @@ export class ApiClient {
   public presets = {
     get: async (): Promise<PresetsResponse> => {
       return this.request<PresetsResponse>('/api/presets', { method: 'GET' })
+    },
+  }
+
+  // --- 9. Timelines ---
+  public timelines = {
+    create: async (videoId: string, sourceDurationMs?: number): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>('/api/timelines', {
+        method: 'POST',
+        body: JSON.stringify({ video_id: videoId, source_duration_ms: sourceDurationMs }),
+      })
+    },
+
+    get: async (timelineId: string): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}`,
+        { method: 'GET' }
+      )
+    },
+
+    applyOps: async (
+      timelineId: string,
+      payload: TimelineOpsRequest
+    ): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/ops`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }
+      )
+    },
+
+    undo: async (
+      timelineId: string,
+      expectedVersion: number
+    ): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/undo`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expected_version: expectedVersion }),
+        }
+      )
+    },
+
+    redo: async (
+      timelineId: string,
+      expectedVersion: number
+    ): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/redo`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expected_version: expectedVersion }),
+        }
+      )
+    },
+
+    history: async (timelineId: string): Promise<TimelineHistoryResponse> => {
+      return this.request<TimelineHistoryResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/history`,
+        { method: 'GET' }
+      )
+    },
+
+    restore: async (
+      timelineId: string,
+      version: number,
+      expectedVersion: number
+    ): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/restore/${version}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expected_version: expectedVersion }),
+        }
+      )
+    },
+
+    render: async (timelineId: string, version?: number): Promise<JobResponse> => {
+      const q = version ? `?version=${version}` : ''
+      return this.request<JobResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/render${q}`,
+        { method: 'POST' }
+      )
+    },
+
+    cancel: async (
+      timelineId: string,
+      jobId?: string
+    ): Promise<{ ok: boolean; message: string }> => {
+      const q = jobId ? `?job_id=${encodeURIComponent(jobId)}` : ''
+      return this.request<{ ok: boolean; message: string }>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/cancel${q}`,
+        { method: 'POST' }
+      )
+    },
+
+    getDownloadUrl: (timelineId: string): string => {
+      return `${this.baseUrl}/api/timelines/${encodeURIComponent(timelineId)}/download`
+    },
+
+    getFrameUrl: (timelineId: string, t: number): string => {
+      return `${this.baseUrl}/api/timelines/${encodeURIComponent(timelineId)}/frame?t=${encodeURIComponent(t)}`
+    },
+
+    plan: async (
+      timelineId: string,
+      prompt: string,
+      dryRun: boolean = true
+    ): Promise<PlanResponse> => {
+      return this.request<PlanResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/plan`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ prompt, dry_run: dryRun }),
+        }
+      )
+    },
+
+    getPlan: async (
+      timelineId: string,
+      planId: string
+    ): Promise<PlanResponse> => {
+      return this.request<PlanResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/plan/${encodeURIComponent(planId)}`,
+        { method: 'GET' }
+      )
+    },
+
+    applyPlan: async (
+      timelineId: string,
+      planId: string,
+      expectedVersion?: number
+    ): Promise<TimelineResponse> => {
+      return this.request<TimelineResponse>(
+        `/api/timelines/${encodeURIComponent(timelineId)}/plan/${encodeURIComponent(planId)}/apply`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expected_version: expectedVersion }),
+        }
+      )
+    },
+
+    connectWebSocket: (
+      timelineId: string,
+      onMessage: (event: any) => void,
+      onError?: (err: any) => void
+    ): (() => void) => {
+      const wsProto = this.baseUrl.startsWith('https') ? 'wss' : 'ws'
+      const host = this.baseUrl.replace(/^https?:\/\//, '')
+      const wsUrl = `${wsProto}://${host}/ws/timelines/${encodeURIComponent(timelineId)}`
+
+      let ws: WebSocket | null = null
+      let isClosed = false
+
+      const connect = () => {
+        if (isClosed) return
+        try {
+          ws = new WebSocket(wsUrl)
+          ws.onmessage = (evt) => {
+            try {
+              const data = JSON.parse(evt.data)
+              onMessage(data)
+            } catch {
+              // ignore non-json
+            }
+          }
+          ws.onerror = (err) => {
+            onError?.(err)
+          }
+          ws.onclose = () => {
+            if (!isClosed) {
+              setTimeout(connect, 3000)
+            }
+          }
+        } catch (e) {
+          onError?.(e)
+        }
+      }
+
+      connect()
+
+      return () => {
+        isClosed = true
+        if (ws) {
+          ws.close()
+        }
+      }
     },
   }
 }

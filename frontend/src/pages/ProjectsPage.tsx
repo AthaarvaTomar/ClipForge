@@ -80,7 +80,8 @@ export const ProjectsPage: React.FC = () => {
     setUploadState({ filename: file.name, percent: 0 })
 
     try {
-      const uploadedVideo = await api.videos.upload(file, (percent) => {
+      // Use resumable tus upload endpoint
+      const uploadedVideo = await api.videos.uploadTus(file, (percent) => {
         setUploadState({ filename: file.name, percent })
       })
       // Prepend the new video to the list

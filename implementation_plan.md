@@ -59,15 +59,15 @@
 
 ## Phase 7: Editor UI (React, match mockup)
 
-- [ ] **E1 Routing and layout**: React Router with Projects, Project, Editor and Shorts pages. Done when: all pages navigate and render.
-- [ ] **E2 Timeline store**: Zustand store with optimistic ops reconciled against server version, undo/redo. Done when: edits are instant, 409 resyncs cleanly.
-- [ ] **E3 Timeline component**: tracks, ruler, zoom, playhead, drag, trim, split with snapping, thumbnails and waveforms. Done when: long timelines scroll smoothly.
-- [ ] **E4 Preview player**: plays proxy by sequencing timeline items with client-side captions. Done when: playback follows timeline cuts.
-- [ ] **E5 Inspector**: edit selected item grade, transition, caption style from /api/presets. Done when: changes send ops and show in preview.
-- [ ] **E6 Agent panel**: prompt box, plan preview, Apply and Discard, highlight changed items. Done when: demo prompt visibly changes timeline.
-- [ ] **E7 History panel**: versions, restore, undo groups labelled user or agent. Done when: restoring works and can be undone.
-- [ ] **E8 Export dialog**: render job with progress and download. Done when: export plays in browser.
-- [ ] **E9 Shorts view**: list generated Shorts timelines with preview and export. Done when: "make 3 Shorts" produces three openable timelines.
+- [x] **E1 Routing and layout**: React Router with Projects, Project, Editor and Shorts pages. Done when: all pages navigate and render.
+- [x] **E2 Timeline store**: Zustand store with optimistic ops reconciled against server version, undo/redo. Done when: edits are instant, 409 resyncs cleanly.
+- [x] **E3 Timeline component**: tracks, ruler, zoom, playhead, drag, trim, split with snapping, thumbnails and waveforms. Done when: long timelines scroll smoothly.
+- [x] **E4 Preview player**: plays proxy by sequencing timeline items with client-side captions. Done when: playback follows timeline cuts.
+- [x] **E5 Inspector**: edit selected item grade, transition, caption style from /api/presets. Done when: changes send ops and show in preview.
+- [x] **E6 Agent panel**: prompt box, plan preview, Apply and Discard, highlight changed items. Done when: demo prompt visibly changes timeline.
+- [x] **E7 History panel**: versions, restore, undo groups labelled user or agent. Done when: restoring works and can be undone.
+- [x] **E8 Export dialog**: render job with progress and download. Done when: export plays in browser.
+- [x] **E9 Shorts view**: list generated Shorts timelines with preview and export. Done when: "make 3 Shorts" produces three openable timelines.
 
 ## Phase 8: B-roll and Audio
 

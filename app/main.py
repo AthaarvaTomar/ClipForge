@@ -52,6 +52,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "Upload-Offset",
+        "Tus-Resumable",
+        "Tus-Version",
+        "Tus-Extension",
+        "Tus-Max-Size",
+        "Location",
+        "Upload-Length",
+        "Upload-Metadata",
+        "Video-Id",
+        "Upload-Completed",
+        "X-Process-Time-Ms",
+    ],
 )
 
 

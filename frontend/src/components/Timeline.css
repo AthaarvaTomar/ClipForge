@@ -415,45 +415,74 @@
   transition: outline 0.1s ease, border-color 0.1s ease;
 }
 
+.tl-status-notice {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--raised, #1B1D21);
+  border: 1px solid var(--accent, #3F6BF0);
+  color: var(--text, #ECEDEF);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--radius-control, 6px);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.legend-agent-square {
+  width: 8px;
+  height: 8px;
+  background-color: var(--accent, #3F6BF0);
+  border-radius: 2px;
+  display: inline-block;
+}
+
 .tl-clip-item.selected {
-  outline: 2px solid var(--accent, #ff7a45);
+  outline: 2px solid var(--accent, #3F6BF0);
   z-index: 5;
 }
 
+.tl-clip-item.linked-selected {
+  outline: 1.5px dashed var(--accent, #3F6BF0);
+  z-index: 4;
+}
+
 .tl-clip-item.caption {
-  background-color: #2b233a;
-  border-color: #493b61;
+  background-color: var(--track-captions-fill, #2E2A45);
+  border-color: var(--track-captions-border, #443E66);
   color: #e4d7f5;
 }
 
 .tl-clip-item.overlay {
-  background-color: #172c2c;
-  border-color: #284c4c;
-  color: #bbf0ea;
+  background-color: var(--track-broll-fill, #3B3226);
+  border-color: var(--track-broll-border, #54452F);
+  color: #eeddc8;
 }
 
 .tl-clip-item.video {
-  background-color: #1c2a3d;
-  border-color: #2f4766;
+  background-color: var(--track-video-fill, #222B45);
+  border-color: var(--track-video-border, #34416B);
   color: #d1e4fa;
 }
 
 .tl-clip-item.audio {
-  background-color: #162c22;
-  border-color: #274f3d;
+  background-color: var(--track-audio-fill, #17302A);
+  border-color: var(--track-audio-border, #2A5247);
   color: #c0f3d4;
 }
 
-/* Agent modified indicator */
+/* Agent modified indicator: 3px inset blue edge */
 .tl-clip-item.agent-modified {
-  border-left: 3px solid var(--accent, #ff7a45) !important;
+  box-shadow: inset 3px 0 0 #3F6BF0 !important;
 }
 
 .clip-agent-badge {
   position: absolute;
   top: 3px;
-  left: 4px;
-  color: var(--accent, #ff7a45);
+  left: 6px;
+  color: var(--accent, #3F6BF0);
   display: flex;
   align-items: center;
 }
@@ -569,7 +598,7 @@
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 10px solid var(--accent, #ff7a45);
+  border-top: 10px solid var(--playhead, #F2555A);
 }
 
 .playhead-line {
@@ -578,6 +607,6 @@
   bottom: 0;
   left: 50%;
   width: 1.5px;
-  background-color: var(--accent, #ff7a45);
-  box-shadow: 0 0 4px rgba(255, 122, 69, 0.4);
+  background-color: var(--playhead, #F2555A);
+  box-shadow: none;
 }

@@ -662,3 +662,118 @@
 .mock-clip-block.agent-modified {
   border-left: 3px solid var(--accent) !important;
 }
+
+/* Modal Overlays for History and Export */
+.editor-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.editor-modal-box {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel, 8px);
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-modal-header {
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.editor-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.editor-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  background-color: var(--subtle-band);
+}
+
+.history-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control, 6px);
+}
+
+.history-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-actor-chip {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.history-actor-chip.agent {
+  background-color: rgba(63, 107, 240, 0.2);
+  color: var(--accent-soft);
+  border: 1px solid rgba(63, 107, 240, 0.4);
+}
+
+.history-actor-chip.user {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.export-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.export-progress-track {
+  height: 6px;
+  background-color: var(--raised);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.export-progress-fill {
+  height: 100%;
+  background-color: var(--accent);
+  transition: width 0.2s ease;
+}

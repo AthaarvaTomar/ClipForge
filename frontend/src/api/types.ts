@@ -190,3 +190,107 @@ export interface BackendErrorBody {
     details?: unknown
   }
 }
+
+export type TrackType = 'video' | 'audio' | 'overlay' | 'caption'
+
+export interface ItemTransition {
+  type: 'none' | 'fade' | 'wipeleft' | 'crossfade' | 'slideup'
+  duration_ms: number
+}
+
+export interface TimelineItem {
+  id: string
+  source: string
+  src_in: number
+  src_out: number
+  start: number
+  effects?: Record<string, unknown>
+  volume?: number
+  grade?: GradeSpec | null
+  transition?: ItemTransition | null
+  text?: string | null
+  caption_style?: CaptionSpec | null
+  editedByAgent?: boolean
+}
+
+export interface TimelineTrack {
+  id: string
+  type: TrackType
+  name?: string | null
+  items: TimelineItem[]
+  muted?: boolean
+  locked?: boolean
+}
+
+export interface TimelineResponse {
+  id: string
+  video_id: string
+  version: number
+  tracks: TimelineTrack[]
+  source_duration_ms?: number | null
+  metadata?: Record<string, unknown>
+}
+
+export interface TimelineOpPayload {
+  op: string
+  [key: string]: unknown
+}
+
+export interface TimelineOpsRequest {
+  expected_version: number
+  ops: TimelineOpPayload[]
+  actor?: 'user' | 'agent'
+  group_id?: string | null
+}
+
+export interface TimelineOpRecord {
+  id: number
+  seq: number
+  group_id: string
+  op: Record<string, unknown>
+  inverse_op: Record<string, unknown>
+  actor: string
+  created_at: string
+}
+
+export interface TimelineVersionRecord {
+  id: number
+  version: number
+  created_at: string
+}
+
+export interface TimelineHistoryResponse {
+  timeline_id: string
+  current_version: number
+  current_seq: number
+  ops: TimelineOpRecord[]
+  versions: TimelineVersionRecord[]
+}
+
+export interface PlanOperation {
+  id?: string
+  op: string
+  tag?: string
+  description?: string
+  [key: string]: unknown
+}
+
+export interface PlanResponse {
+  id: string
+  timeline_id: string
+  job_id: string | null
+  prompt: string
+  rationale: string | null
+  ops: PlanOperation[]
+  status: 'PENDING' | 'VALIDATED' | 'APPLIED' | 'FAILED'
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WaveformResponse {
+  video_id: string
+  duration: number
+  sample_rate: number
+  peaks: number[]
+}

@@ -3,9 +3,19 @@
 > Feed ONLY this file (plus AGENTS.md) to the AI each session. Keep it to ~2 hours of work.
 
 ## Active Item
-<!-- Cleared: Phase 9 and UI Section 8 completed -->
+<!-- Cleared: Phase 7 full frontend wiring and verification completed -->
 
 ## Completed in this session
+- [x] Phase 7: Editor UI & Full Frontend Verification (E1–E9 & V1–V9):
+  - [x] V1: API Client Extensions (`frontend/src/api/client.ts` & `types.ts`): Timelines (create, get, applyOps, undo, redo, history, restore, render, cancel, download, frame, plan, applyPlan), websocket client `/ws/timelines/{id}`, and tus resumable upload (`api.videos.uploadTus`).
+  - [x] V2: Resumable tus Upload in `ProjectsPage.tsx`: Integrated tus 1.0 protocol chunked upload (`api.videos.uploadTus`) with live percentage and progress bar.
+  - [x] V3: Real Timeline State & Concurrency in `timelineStore.ts`: Fetching from backend `/api/timelines/:id` and `/api/clips/:id/timeline`, optimistic op queue, 409 conflict handling with resync notice, and live WebSocket push events.
+  - [x] V4: Timeline Component Interactions in `Timeline.tsx`: Razor split shortcut 'C', Delete key, Shift+Delete ripple delete, drag to trim start/end, drag to move with snapping to playhead/edges/1s ticks, 3px blue edge on agent edits, and linked A/V synchronization.
+  - [x] V5: Agent Panel with Real AI Planner in `EditorPage.tsx`: Integrated `POST /api/timelines/:id/plan`, proposed plan ops breakdown, and `POST .../apply` executing as a single undo group with 3px blue agent clip highlight.
+  - [x] V6: Version History Panel & Restore in `EditorPage.tsx`: Modal displaying version snapshots from `GET /api/timelines/:id/history` with restore action that can itself be undone.
+  - [x] V7: Export Dialog in `EditorPage.tsx`: Pinned version render with `POST /api/timelines/:id/render`, active job progress polling, and direct MP4 download link.
+  - [x] V8: Preview Player in `EditorPage.tsx`: Sequences items with proxy video playback, live client-side captions, and frame-grade verification check endpoint.
+  - [x] V9: Full Verification: `tsc -b && vite build` (passed in 2.81s, 0 errors), `pytest` test suites green, `ruff check app tests` (clean), `mypy app` (0 errors across 83 source files).
 - [x] UI Section 8: The Timeline component
   - Toolbar with Split at Playhead, Ripple Delete, Snapping toggle, and Zoom slider (0.5x–3.0x).
   - Time Ruler with milliseconds / SMPTE timecode ticks and playhead indicator.
@@ -118,14 +128,7 @@
   - Verification: Scaffolded Vite React TS in `frontend/`, configured `frontend/.env.example` and `frontend/.env`, created required subfolders (`src/api`, `src/pages`, `src/components`, `src/hooks`), configured root proxy scripts in `package.json`, and tested live with browser subagent showing `/health` returning `{"status": "ok"}` with raw JSON output and error boundaries; verified with `tsc -b && vite build` (pass), `ruff check .` (clean), `mypy app` (0 issues across 44 files), `pytest tests/test_presets.py` (3 passed).
 
 ## Next Up
-- [ ] Phase 6: AI Edit Planner (P1, P2, P3, P4, P5, P6, P7)
-  - [ ] P1 Tool schema: generate Gemini function-calling declarations from the T3 op models. Done when: the model can only emit valid op shapes.
-  - [ ] P2 Context builder: compact index summary and current timeline summary within a token budget. Done when: a 3-hour index fits in one request.
-  - [ ] P3 Plan endpoint: POST /api/timelines/{id}/plan {prompt} runs as a job and returns {rationale, ops[]}. Done when: "remove all silences" returns valid ops.
-  - [ ] P4 Validate and repair: apply ops to a copy, reject invalid ones, retry once with error feedback. Done when: bad plans are repaired or rejected with clear message.
-  - [ ] P5 Apply plan: POST .../plan/{plan_id}/apply applies all ops as one undo group with actor agent. Done when: one undo reverts the whole agent action.
-  - [ ] P6 Demo prompts: "tighten first 15s", "remove repeated takes", "add B-roll", "make 3 Shorts". Done when: each prompt works on the sample recording.
-  - [ ] P7 Live events: WebSocket /ws/timelines/{id} pushing op-applied events and job progress. Done when: a second browser tab sees edits live.
+<!-- All phases planned in implementation_plan.md -->
 
 
 

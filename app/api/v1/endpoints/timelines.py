@@ -94,7 +94,7 @@ def apply_ops(
     - Automatically purges redo stack if in an undone state.
     - Creates snapshots every N ops.
     """
-    return TimelineService.apply_ops(
+    result = TimelineService.apply_ops(
         db=db,
         timeline_id=id,
         ops=payload.ops,
@@ -102,6 +102,21 @@ def apply_ops(
         actor=payload.actor,
         group_id=payload.group_id,
     )
+    try:
+        from app.api.v1.endpoints.websocket import timeline_manager
+
+        timeline_manager.broadcast_sync(
+            timeline_id=id,
+            message={
+                "event": "OP_APPLIED",
+                "timeline_id": id,
+                "version": result.version,
+                "actor": payload.actor,
+            },
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post(
@@ -116,11 +131,26 @@ def undo(
     db: Session = Depends(get_db),
 ) -> Timeline:
     """Undo the most recent group of operations in reverse order."""
-    return TimelineService.undo(
+    result = TimelineService.undo(
         db=db,
         timeline_id=id,
         expected_version=payload.expected_version,
     )
+    try:
+        from app.api.v1.endpoints.websocket import timeline_manager
+
+        timeline_manager.broadcast_sync(
+            timeline_id=id,
+            message={
+                "event": "OP_APPLIED",
+                "timeline_id": id,
+                "version": result.version,
+                "actor": "user",
+            },
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post(
@@ -135,11 +165,26 @@ def redo(
     db: Session = Depends(get_db),
 ) -> Timeline:
     """Redo the next undone group of operations in forward order."""
-    return TimelineService.redo(
+    result = TimelineService.redo(
         db=db,
         timeline_id=id,
         expected_version=payload.expected_version,
     )
+    try:
+        from app.api.v1.endpoints.websocket import timeline_manager
+
+        timeline_manager.broadcast_sync(
+            timeline_id=id,
+            message={
+                "event": "OP_APPLIED",
+                "timeline_id": id,
+                "version": result.version,
+                "actor": "user",
+            },
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.get(
@@ -169,12 +214,27 @@ def restore_version(
     db: Session = Depends(get_db),
 ) -> Timeline:
     """Restore a pinned snapshot version from timeline_versions."""
-    return TimelineService.restore_version(
+    result = TimelineService.restore_version(
         db=db,
         timeline_id=id,
         target_version=version,
         expected_version=payload.expected_version,
     )
+    try:
+        from app.api.v1.endpoints.websocket import timeline_manager
+
+        timeline_manager.broadcast_sync(
+            timeline_id=id,
+            message={
+                "event": "OP_APPLIED",
+                "timeline_id": id,
+                "version": result.version,
+                "actor": "user",
+            },
+        )
+    except Exception:
+        pass
+    return result
 
 
 @router.post(

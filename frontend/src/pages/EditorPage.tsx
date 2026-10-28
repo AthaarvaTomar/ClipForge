@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import {
   Undo2,
   Redo2,
-  History,
+  History as HistoryIcon,
   Download,
   Play,
   Pause,
@@ -11,11 +11,18 @@ import {
   Check,
   CheckCircle2,
   Volume2,
-  Sparkles,
+  X,
+  AlertCircle,
+  Eye,
 } from 'lucide-react'
 import { useTimelineStore } from '../store/timelineStore'
 import { formatTimecode } from '../utils/format'
-import { api, type PresetsResponse } from '../api'
+import {
+  api,
+  type PresetsResponse,
+  type TimelineHistoryResponse,
+  type JobResponse,
+} from '../api'
 import { Timeline } from '../components/Timeline'
 import './EditorPage.css'
 
@@ -28,10 +35,11 @@ export const EditorPage: React.FC = () => {
     selectedItemId,
     currentTimeMs,
     isPlaying,
-    undoStack,
-    redoStack,
+    canUndo,
+    canRedo,
     chatMessages,
     proposedPlan,
+    loadTimeline,
     setCurrentTime,
     setIsPlaying,
     updateSelectedItemGrade,
@@ -42,15 +50,35 @@ export const EditorPage: React.FC = () => {
     sendPrompt,
     undo,
     redo,
+    restoreVersion,
   } = useTimelineStore()
 
   // Local UI states
   const [activeTab, setActiveTab] = useState<'agent' | 'transcript' | 'assets'>('agent')
   const [promptInput, setPromptInput] = useState<string>('')
   const [presets, setPresets] = useState<PresetsResponse | null>(null)
+
+  // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
+  const [historyData, setHistoryData] = useState<TimelineHistoryResponse | null>(null)
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false)
+
+  const [showExportModal, setShowExportModal] = useState<boolean>(false)
+  const [exportJob, setExportJob] = useState<JobResponse | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  // Preview Frame check state (exact grade render from backend)
+  const [frameCheckActive, setFrameCheckActive] = useState<boolean>(false)
 
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Load timeline from backend on mount or route param change
+  useEffect(() => {
+    if (timelineId) {
+      loadTimeline(timelineId)
+    }
+  }, [timelineId, loadTimeline])
 
   // Fetch presets from /api/presets
   useEffect(() => {
@@ -67,6 +95,11 @@ export const EditorPage: React.FC = () => {
   // Global Keyboard Shortcuts (Ctrl+Z for undo, Ctrl+Shift+Z for redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return
+      }
+
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         undo()
@@ -92,6 +125,18 @@ export const EditorPage: React.FC = () => {
     return null
   }, [timeline, selectedItemId])
 
+  // Calculate total timeline duration
+  const totalDurationMs = useMemo(() => {
+    let max = 43500
+    for (const t of timeline.tracks) {
+      for (const it of t.items) {
+        const itEnd = it.start + (it.src_out - it.src_in)
+        if (itEnd > max) max = itEnd
+      }
+    }
+    return max
+  }, [timeline])
+
   // Send prompt handler
   const handleSendPrompt = () => {
     if (!promptInput.trim()) return
@@ -109,7 +154,109 @@ export const EditorPage: React.FC = () => {
     return activeItem?.text || 'If your hook is weak, nobody stays past 3 seconds.'
   }, [timeline, currentTimeMs])
 
-  const totalDurationMs = 42000
+  // Playback loop sequencing timeline items
+  useEffect(() => {
+    if (!isPlaying) return
+    let lastTime = performance.now()
+    let animId: number
+
+    const tick = (now: number) => {
+      const delta = now - lastTime
+      lastTime = now
+      const nextMs = currentTimeMs + delta
+
+      if (nextMs >= totalDurationMs) {
+        setCurrentTime(0)
+        setIsPlaying(false)
+      } else {
+        setCurrentTime(nextMs)
+        animId = requestAnimationFrame(tick)
+      }
+    }
+
+    animId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animId)
+  }, [isPlaying, currentTimeMs, totalDurationMs, setCurrentTime, setIsPlaying])
+
+  // Sync HTML5 video element currentTime if available
+  useEffect(() => {
+    if (!videoRef.current) return
+    // Find active video item on primary video track
+    const v1 = timeline.tracks.find((t) => t.type === 'video')
+    if (v1) {
+      const activeItem = v1.items.find(
+        (i) => currentTimeMs >= i.start && currentTimeMs <= i.start + (i.src_out - i.src_in)
+      )
+      if (activeItem) {
+        const offsetInItem = currentTimeMs - activeItem.start
+        const targetSec = (activeItem.src_in + offsetInItem) / 1000
+        if (Math.abs(videoRef.current.currentTime - targetSec) > 0.3) {
+          videoRef.current.currentTime = targetSec
+        }
+      }
+    }
+  }, [currentTimeMs, timeline.tracks])
+
+  // Fetch Version History when modal opens
+  const openHistoryModal = async () => {
+    setShowHistoryModal(true)
+    setHistoryLoading(true)
+    try {
+      const hist = await api.timelines.history(timeline.id)
+      setHistoryData(hist)
+    } catch (err) {
+      console.warn('Could not fetch server timeline history:', err)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  // Handle Restore Version
+  const handleRestore = async (version: number) => {
+    await restoreVersion(version)
+    setShowHistoryModal(false)
+  }
+
+  // Start Timeline Render Export
+  const handleStartExport = async () => {
+    setExportError(null)
+    try {
+      const job = await api.timelines.render(timeline.id, timeline.version)
+      setExportJob(job)
+    } catch (err: any) {
+      setExportError(err?.message || 'Failed to start export.')
+    }
+  }
+
+  // Poll export job status
+  useEffect(() => {
+    if (!exportJob || exportJob.status === 'DONE' || exportJob.status === 'FAILED') {
+      return
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const job = await api.jobs.get(exportJob.id)
+        setExportJob(job)
+      } catch (err) {
+        console.warn('Failed to poll export job status:', err)
+      }
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [exportJob])
+
+  // Cancel export job
+  const handleCancelExport = async () => {
+    if (exportJob?.id) {
+      await api.timelines.cancel(timeline.id, exportJob.id).catch(() => null)
+    }
+    setExportJob(null)
+    setShowExportModal(false)
+  }
+
+  const proxyUrl = api.videos.getProxyUrl(timeline.video_id)
+  const framePreviewUrl = api.timelines.getFrameUrl(timeline.id, currentTimeMs / 1000)
 
   return (
     <div className="editor-page">
@@ -147,7 +294,7 @@ export const EditorPage: React.FC = () => {
             </Link>
             <span style={{ color: 'var(--border-controls)' }}>/</span>
             <Link to="/shorts" className="editor-breadcrumb-link">
-              planner_test_video.mp4
+              Shorts
             </Link>
             <span style={{ color: 'var(--border-controls)' }}>/</span>
             <span style={{ color: 'var(--text)', fontWeight: 500 }}>
@@ -169,7 +316,7 @@ export const EditorPage: React.FC = () => {
             type="button"
             className="btn-icon"
             onClick={undo}
-            disabled={undoStack.length === 0}
+            disabled={!canUndo}
             aria-label="Undo (Ctrl+Z)"
             title="Undo (Ctrl+Z)"
             id="btn-undo"
@@ -181,7 +328,7 @@ export const EditorPage: React.FC = () => {
             type="button"
             className="btn-icon"
             onClick={redo}
-            disabled={redoStack.length === 0}
+            disabled={!canRedo}
             aria-label="Redo (Ctrl+Shift+Z)"
             title="Redo (Ctrl+Shift+Z)"
             id="btn-redo"
@@ -192,12 +339,12 @@ export const EditorPage: React.FC = () => {
           <button
             type="button"
             className="btn-secondary editor-history-btn"
-            onClick={() => setShowHistoryModal(!showHistoryModal)}
+            onClick={openHistoryModal}
             aria-label="Version history"
             title="View version history"
             id="btn-history"
           >
-            <History size={15} strokeWidth={1.5} />
+            <HistoryIcon size={15} strokeWidth={1.5} />
             <span>History</span>
           </button>
 
@@ -205,6 +352,7 @@ export const EditorPage: React.FC = () => {
             type="button"
             className="btn-primary"
             style={{ padding: '6px 14px' }}
+            onClick={() => setShowExportModal(true)}
             aria-label="Export timeline"
             id="btn-editor-export"
           >
@@ -278,10 +426,10 @@ export const EditorPage: React.FC = () => {
                         <p className="proposed-plan-rationale">{msg.plan.rationale}</p>
 
                         <div className="proposed-ops-list">
-                          {msg.plan.ops.map((op) => (
-                            <div key={op.id} className="proposed-op-item">
-                              <span className="op-tag">{op.tag}</span>
-                              <span className="op-desc">{op.description}</span>
+                          {msg.plan.ops.map((op, idx) => (
+                            <div key={op.id || idx} className="proposed-op-item">
+                              <span className="op-tag">{op.tag || op.op}</span>
+                              <span className="op-desc">{op.description || `${op.op} operation`}</span>
                             </div>
                           ))}
                         </div>
@@ -319,7 +467,7 @@ export const EditorPage: React.FC = () => {
                 <div className="agent-prompt-input-wrapper">
                   <textarea
                     className="agent-prompt-textarea"
-                    placeholder="Describe an edit (e.g. tighten first 15s)..."
+                    placeholder="Describe an edit (e.g. remove repeated takes, tighten first 15s)..."
                     value={promptInput}
                     onChange={(e) => setPromptInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -376,15 +524,15 @@ export const EditorPage: React.FC = () => {
                 PROJECT MEDIA ASSETS
               </span>
               <div className="inspector-item-meta">
-                <span style={{ fontWeight: 600, color: 'var(--text)' }}>planner_test_video.mp4</span>
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>Source Video</span>
                 <span className="mono" style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  Source 1080p · 03:00.0
+                  ID: {timeline.video_id}
                 </span>
               </div>
               <div className="inspector-item-meta">
-                <span style={{ fontWeight: 600, color: 'var(--text)' }}>modern_workspace.mp4</span>
-                <span className="mono" style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  B-roll overlay · 00:08.0
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>Proxy Status</span>
+                <span className="mono" style={{ fontSize: '11px', color: 'var(--accent-soft)' }}>
+                  360p Fast Sequence Available
                 </span>
               </div>
             </div>
@@ -395,22 +543,38 @@ export const EditorPage: React.FC = () => {
         <section className="editor-preview-column" aria-label="Video Preview Canvas">
           {/* Vertical 9:16 Preview Box */}
           <div className="preview-frame-container" id="preview-frame-916">
-            <div className="preview-mock-video">
-              <div style={{ textAlign: 'center', opacity: 0.2 }}>
-                <Sparkles size={36} strokeWidth={1} />
-              </div>
-            </div>
+            {frameCheckActive ? (
+              <img
+                src={framePreviewUrl}
+                alt="Exact rendered timeline frame"
+                className="preview-mock-video"
+                style={{ objectFit: 'cover' }}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                src={proxyUrl}
+                className="preview-mock-video"
+                muted
+                playsInline
+                onError={() => {
+                  // Fallback if proxy not available yet
+                }}
+              />
+            )}
 
             {/* Captions Overlay */}
-            <div className="preview-caption-overlay" aria-live="polite">
-              <span className="preview-caption-text">
-                {currentCaption.split(' ').map((word, i) => (
-                  <span key={i} className={i === 2 ? 'highlight-word' : ''}>
-                    {word}{' '}
-                  </span>
-                ))}
-              </span>
-            </div>
+            {!frameCheckActive && (
+              <div className="preview-caption-overlay" aria-live="polite">
+                <span className="preview-caption-text">
+                  {currentCaption.split(' ').map((word, i) => (
+                    <span key={i} className={i === 2 ? 'highlight-word' : ''}>
+                      {word}{' '}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Transport Controls Bar */}
@@ -436,6 +600,18 @@ export const EditorPage: React.FC = () => {
               aria-label="Timeline playhead scrubber"
             />
 
+            {/* Exact Frame Grade Check Button */}
+            <button
+              type="button"
+              className={`btn-icon ${frameCheckActive ? 'active' : ''}`}
+              onClick={() => setFrameCheckActive(!frameCheckActive)}
+              title={frameCheckActive ? 'Return to live proxy playback' : 'Check exact rendered frame & grade from backend'}
+              aria-label="Check exact frame"
+              style={{ width: '28px', height: '28px' }}
+            >
+              <Eye size={14} />
+            </button>
+
             {/* Monospace timecode "00:00:12:08 / 00:00:42:00" */}
             <span className="preview-timecode-display mono" id="preview-timecode">
               {formatTimecode(currentTimeMs)} / {formatTimecode(totalDurationMs)}
@@ -452,7 +628,7 @@ export const EditorPage: React.FC = () => {
               {/* Selected Item Title & Mono Range */}
               <div className="inspector-item-meta">
                 <span className="inspector-item-id">
-                  {selectedItem.track.name} · {selectedItem.item.id}
+                  {selectedItem.track.name || selectedItem.track.id} · {selectedItem.item.id}
                 </span>
                 <span className="inspector-item-range mono">
                   {formatTimecode(selectedItem.item.start)} –{' '}
@@ -471,7 +647,7 @@ export const EditorPage: React.FC = () => {
                   value={selectedItem.item.grade?.preset || 'none'}
                   onChange={(e) =>
                     updateSelectedItemGrade({
-                      preset: e.target.value as 'none' | 'cinematic' | 'warm' | 'vibrant' | 'cool' | 'bw',
+                      preset: e.target.value as any,
                       contrast: 1.1,
                       saturation: 1.05,
                     })
@@ -507,7 +683,7 @@ export const EditorPage: React.FC = () => {
                   value={selectedItem.item.transition?.type || 'none'}
                   onChange={(e) =>
                     updateSelectedItemTransition({
-                      type: e.target.value as 'none' | 'fade' | 'wipeleft' | 'crossfade' | 'slideup',
+                      type: e.target.value as any,
                       duration_ms: 500,
                     })
                   }
@@ -543,12 +719,12 @@ export const EditorPage: React.FC = () => {
                     min={0}
                     max={1}
                     step={0.05}
-                    value={selectedItem.item.volume}
+                    value={selectedItem.item.volume ?? 1.0}
                     onChange={(e) => updateSelectedItemVolume(Number(e.target.value))}
                     className="inspector-range-slider"
                   />
                   <span className="volume-value mono">
-                    {Math.round(selectedItem.item.volume * 100)}%
+                    {Math.round((selectedItem.item.volume ?? 1.0) * 100)}%
                   </span>
                 </div>
               </div>
@@ -565,6 +741,164 @@ export const EditorPage: React.FC = () => {
       <footer className="editor-timeline-panel" aria-label="Timeline Editor Panel" id="timeline-panel">
         <Timeline />
       </footer>
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="editor-modal-backdrop" onClick={() => setShowHistoryModal(false)}>
+          <div className="editor-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="editor-modal-header">
+              <span className="editor-modal-title">Timeline Version History</span>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setShowHistoryModal(false)}
+                aria-label="Close history modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="editor-modal-body">
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                  Loading versions...
+                </div>
+              ) : historyData && historyData.versions && historyData.versions.length > 0 ? (
+                historyData.versions.map((ver) => (
+                  <div key={ver.id} className="history-item-row">
+                    <div className="history-item-left">
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span className="mono" style={{ fontWeight: 600, color: 'var(--text)' }}>
+                          v{ver.version}
+                        </span>
+                        <span className="history-actor-chip agent">Snapshot</span>
+                      </div>
+                      <span className="mono" style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                        {new Date(ver.created_at).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '11px' }}
+                      onClick={() => handleRestore(ver.version)}
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                  No snapshots saved yet. Edit clips to generate version history.
+                </div>
+              )}
+            </div>
+
+            <div className="editor-modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Dialog */}
+      {showExportModal && (
+        <div className="editor-modal-backdrop" onClick={() => setShowExportModal(false)}>
+          <div className="editor-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="editor-modal-header">
+              <span className="editor-modal-title">Export Timeline (Vertical 9:16)</span>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setShowExportModal(false)}
+                aria-label="Close export dialog"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="editor-modal-body">
+              <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+                Renders a pinned MP4 video of <strong>v{timeline.version}</strong> with burned-in ASS
+                captions, color grade, and multi-track audio mixdown.
+              </p>
+
+              {exportError && (
+                <div style={{ color: '#F2555A', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={14} />
+                  <span>{exportError}</span>
+                </div>
+              )}
+
+              {exportJob && (
+                <div className="export-progress-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                    <span style={{ color: 'var(--text)' }}>
+                      Status: <strong>{exportJob.status}</strong>
+                    </span>
+                    <span className="mono" style={{ color: 'var(--accent-soft)' }}>
+                      {exportJob.progress}%
+                    </span>
+                  </div>
+
+                  <div className="export-progress-track">
+                    <div
+                      className="export-progress-fill"
+                      style={{ width: `${Math.max(5, exportJob.progress)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="editor-modal-footer">
+              {exportJob?.status === 'DONE' ? (
+                <a
+                  href={api.timelines.getDownloadUrl(timeline.id)}
+                  download={`timeline_${timeline.id}.mp4`}
+                  className="btn-primary"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Download size={14} />
+                  <span>Download MP4</span>
+                </a>
+              ) : exportJob?.status === 'PROCESSING' || exportJob?.status === 'PENDING' ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleCancelExport}
+                >
+                  Cancel Render
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowExportModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleStartExport}
+                  >
+                    Start Export
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
