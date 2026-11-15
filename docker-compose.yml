@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: clipforge-minio
     command: server /data --console-address ":9001"
     environment:
@@ -22,16 +22,54 @@ services:
       - minio_data:/data
     restart: unless-stopped
 
+  api:
+    build: .
+    container_name: clipforge-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./clipforge.db
+      - STORAGE_BACKEND=local
+      - UPLOAD_DIR=/app/data/uploads
+      - OUTPUT_DIR=/app/data/outputs
+      - PROXY_DIR=/app/data/proxies
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./data:/app/data
+      - ./clipforge.db:/app/clipforge.db
+    depends_on:
+      - redis
+    restart: unless-stopped
+
   worker-general:
     build: .
+    container_name: clipforge-worker-general
     command: celery -A app.tasks.celery_app worker -Q default,transcription,indexing --loglevel=info -c 2
     environment:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./clipforge.db
       - STORAGE_BACKEND=local
+      - UPLOAD_DIR=/app/data/uploads
+      - OUTPUT_DIR=/app/data/outputs
+      - PROXY_DIR=/app/data/proxies
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
     volumes:
-      - .:/app
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./data:/app/data
+      - ./clipforge.db:/app/clipforge.db
     depends_on:
       - redis
     restart: unless-stopped
@@ -43,9 +81,16 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./clipforge.db
       - STORAGE_BACKEND=local
+      - UPLOAD_DIR=/app/data/uploads
+      - OUTPUT_DIR=/app/data/outputs
+      - PROXY_DIR=/app/data/proxies
     volumes:
-      - .:/app
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./data:/app/data
+      - ./clipforge.db:/app/clipforge.db
     depends_on:
       - redis
     restart: unless-stopped
