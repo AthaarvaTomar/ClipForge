@@ -34,13 +34,15 @@ def create_highlights_job(
         )
 
     transcript = db.scalar(select(Transcript).where(Transcript.video_id == video_id))
-    if not transcript or not transcript.text.strip():
+    is_incomplete = (
+        not transcript
+        or not transcript.text.strip()
+        or video.status in ("uploaded", "transcribing")
+    )
+    if is_incomplete:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"Transcript not found for video '{video_id}'. "
-                "Please enqueue and complete a transcription job first."
-            ),
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Transcription not complete yet",
         )
 
     job = JobService.create_job(

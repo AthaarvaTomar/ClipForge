@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,16 @@ class TranscriptionError(Exception):
     """Raised when transcription fails."""
 
 
+def compute_transcription_progress(segment_end: float, duration: float) -> int:
+    """Compute progress percentage (0-99) from segment end time and total audio duration.
+
+    Guarantees progress never exceeds 99 until the transcript is saved.
+    """
+    if duration <= 0:
+        return 0
+    return min(99, max(0, int((segment_end / duration) * 100)))
+
+
 _model_cache: dict[str, WhisperModel] = {}
 
 
@@ -72,6 +83,8 @@ def transcribe_audio(
     audio_path: Path | str,
     model_size: str = "tiny",
     language: str | None = None,
+    duration: float | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> TranscriptionResult:
     """Transcribe an audio file using faster-whisper with word-level timestamps."""
     path = Path(audio_path)
@@ -85,6 +98,12 @@ def transcribe_audio(
             language=language,
             word_timestamps=True,
             beam_size=5,
+        )
+
+        total_duration = (
+            duration
+            if (duration is not None and duration > 0)
+            else getattr(info, "duration", 0.0)
         )
 
         full_text_parts: list[str] = []
@@ -101,6 +120,10 @@ def transcribe_audio(
                         probability=w.probability,
                     )
                     words_list.append(word_obj.to_dict())
+
+            if on_progress and total_duration > 0:
+                prog = compute_transcription_progress(segment.end, total_duration)
+                on_progress(prog)
 
         full_text = " ".join(full_text_parts).strip()
         detected_language = info.language or "en"

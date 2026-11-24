@@ -3,9 +3,23 @@
 > Feed ONLY this file (plus AGENTS.md) to the AI each session. Keep it to ~2 hours of work.
 
 ## Active Item
-<!-- Cleared: Phase 7 full frontend wiring and verification completed -->
+<!-- No active item. Previous task completed. -->
 
 ## Completed in this session
+- [x] Show real progress bar and time estimate while video is transcribing:
+  - [x] Add `progress` (int 0-100) and `transcribe_started_at` (timezone-aware datetime) to `Video` model and generated/applied Alembic migration `a4920b721e90_add_progress_and_transcribe_started_at_to_videos.py`.
+  - [x] Updated `transcribe_video_task` and `transcription_service` to lazily calculate progress `min(99, int(segment.end / duration * 100))` on segment yields, throttle DB updates to ~2s, and set progress=100 when transcript is persisted.
+  - [x] Exposed `progress`, `transcribe_started_at`, and `duration` in `GET /api/videos/{id}` response schema (`VideoBase`/`VideoResponse`) and TypeScript client types.
+  - [x] In `ShortsPage.tsx` and `ShortsPage.css`, replaced spinner with progress bar showing percentage, elapsed time, smoothed moving-average ETA for progress >= 5%, indeterminate progress for `uploaded` with >30s worker hint, error state with Retry button, and 2.5s "Transcript ready" notice before enabling highlight detection.
+  - [x] Added unit tests in `tests/test_transcription.py` verifying progress calculations (`test_compute_transcription_progress`) and integration test verifying API returns progress, start time, and duration during run (`test_transcription_progress_api_during_run`). All 5 tests passed in 12.61s.
+- [x] Fix "Transcript not found" (404) when running highlight detection:
+  - [x] Diagnosed root cause: Video upload (`POST /api/videos` and `tus_service.finalize_upload`) did not enqueue transcription tasks.
+  - [x] Auto-enqueue background transcription (`transcribe_video_task.delay`) immediately upon video upload and Tus finalize.
+  - [x] Added video status lifecycle: `uploaded` -> `transcribing` -> `transcribed` (or `failed` upon error with worker exception logging).
+  - [x] Guarded highlight detection: `POST /api/highlights/{video_id}` now checks transcript presence and video status; returns HTTP 409 Conflict with `"Transcription not complete yet"` instead of 404.
+  - [x] Updated frontend `ShortsPage.tsx`: disabled the detection CTA while status is `uploaded`, `transcribing`, or `failed`; added animated status spinner and live video status polling; added resilient job progress polling and 409 error handling.
+  - [x] Provided unified one-command local runner `scripts/dev.py` and `npm run dev:all` orchestrating Redis, Celery worker (`-P solo` on Windows), FastAPI API server, and Vite frontend.
+  - [x] Added integration test suite `tests/test_upload_transcribe_highlight.py` validating upload -> auto transcription -> status transition to `transcribed` -> 409 guard check -> highlight detection producing valid segments.
 - [x] Phase 7: Editor UI & Full Frontend Verification (E1–E9 & V1–V9):
   - [x] V1: API Client Extensions (`frontend/src/api/client.ts` & `types.ts`): Timelines (create, get, applyOps, undo, redo, history, restore, render, cancel, download, frame, plan, applyPlan), websocket client `/ws/timelines/{id}`, and tus resumable upload (`api.videos.uploadTus`).
   - [x] V2: Resumable tus Upload in `ProjectsPage.tsx`: Integrated tus 1.0 protocol chunked upload (`api.videos.uploadTus`) with live percentage and progress bar.

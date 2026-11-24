@@ -2,15 +2,23 @@ import shutil
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 import static_ffmpeg
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
+from app.core.database import SessionLocal
 from app.main import app
+from app.models.video import Video
 from app.services.audio_extractor import extract_audio
-from app.services.transcription_service import TranscriptionResult, transcribe_audio
+from app.services.transcription_service import (
+    TranscriptionResult,
+    compute_transcription_progress,
+    transcribe_audio,
+)
 from app.tasks.celery_app import celery_app
 
 static_ffmpeg.add_paths()
@@ -66,6 +74,27 @@ def sample_video_with_audio(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return file_path
 
 
+def test_compute_transcription_progress() -> None:
+    """Unit test: progress is computed correctly and never exceeds 99 until transcript is saved."""
+    duration = 120.0
+    # 0s
+    assert compute_transcription_progress(0.0, duration) == 0
+    # 30s / 120s = 25%
+    assert compute_transcription_progress(30.0, duration) == 25
+    # 60s / 120s = 50%
+    assert compute_transcription_progress(60.0, duration) == 50
+    # 118s / 120s = 98%
+    assert compute_transcription_progress(118.0, duration) == 98
+    # 120s / 120s = 100% -> must be capped at 99
+    assert compute_transcription_progress(120.0, duration) == 99
+    # 130s / 120s = 108% -> must never exceed 99
+    assert compute_transcription_progress(130.0, duration) == 99
+    # Negative and 0 duration
+    assert compute_transcription_progress(10.0, 0.0) == 0
+    assert compute_transcription_progress(10.0, -5.0) == 0
+    assert compute_transcription_progress(-10.0, duration) == 0
+
+
 def test_audio_extraction(sample_video_with_audio: Path) -> None:
     wav_path = extract_audio(sample_video_with_audio)
     assert wav_path.exists()
@@ -87,15 +116,6 @@ def test_transcription_task_and_endpoints(
     client: TestClient,
     sample_video_with_audio: Path,
 ) -> None:
-    # 1. Upload video first
-    with open(sample_video_with_audio, "rb") as f:
-        res = client.post(
-            "/api/videos",
-            files={"file": ("transcribe_test.mp4", f, "video/mp4")},
-        )
-    assert res.status_code == 201
-    video_id = res.json()["id"]
-
     mock_result = TranscriptionResult(
         language="en",
         text="The quick brown fox",
@@ -107,7 +127,19 @@ def test_transcription_task_and_endpoints(
         ],
     )
 
-    with patch("app.tasks.transcription_task.transcribe_audio", return_value=mock_result):
+    with (
+        patch("app.tasks.transcription_task.transcribe_audio", return_value=mock_result),
+        patch("app.api.v1.endpoints.videos.generate_assets_task.delay"),
+    ):
+        # 1. Upload video first
+        with open(sample_video_with_audio, "rb") as f:
+            res = client.post(
+                "/api/videos",
+                files={"file": ("transcribe_test.mp4", f, "video/mp4")},
+            )
+        assert res.status_code == 201
+        video_id = res.json()["id"]
+
         # 2. Trigger transcription job via POST
         job_res = client.post(f"/api/transcripts/{video_id}")
         assert job_res.status_code == 202
@@ -132,6 +164,85 @@ def test_transcription_task_and_endpoints(
 
     # 5. Non-existent video 404 test
     assert client.get("/api/transcripts/non-existent-video").status_code == 404
+
+    # Cleanup
+    client.delete(f"/api/videos/{video_id}")
+
+
+def test_transcription_progress_api_during_run(
+    client: TestClient,
+    sample_video_with_audio: Path,
+) -> None:
+    """Verify that during a transcription run, the API returns progress and timing."""
+    mock_result = TranscriptionResult(
+        language="en",
+        text="Testing progress bar live updates.",
+        words=[
+            {"word": "Testing", "start": 0.0, "end": 0.5, "probability": 0.99},
+            {"word": "progress", "start": 0.5, "end": 1.0, "probability": 0.98},
+        ],
+    )
+
+    def simulate_transcribe_with_progress(
+        audio_path: Any,
+        duration: Any = None,
+        on_progress: Any = None,
+        **kwargs: Any,
+    ) -> TranscriptionResult:
+        if on_progress:
+            on_progress(42)
+        return mock_result
+
+    with (
+        patch(
+            "app.tasks.transcription_task.transcribe_audio",
+            side_effect=simulate_transcribe_with_progress,
+        ),
+        patch("app.api.v1.endpoints.videos.generate_assets_task.delay"),
+    ):
+        # 1. Upload video (triggers transcription in eager mode)
+        with open(sample_video_with_audio, "rb") as f:
+            res = client.post(
+                "/api/videos",
+                files={"file": ("progress_test.mp4", f, "video/mp4")},
+            )
+        assert res.status_code == 201
+        video_id = res.json()["id"]
+
+    # Verify API returns progress mid-run (transcribing state)
+    db = SessionLocal()
+    v_mid = db.scalar(select(Video).where(Video.id == video_id))
+    assert v_mid is not None
+    v_mid.status = "transcribing"
+    v_mid.progress = 42
+    db.commit()
+    db.close()
+
+    api_mid_res = client.get(f"/api/videos/{video_id}")
+    assert api_mid_res.status_code == 200
+    mid_api_data = api_mid_res.json()
+    assert mid_api_data["progress"] == 42
+    assert mid_api_data["status"] == "transcribing"
+    assert mid_api_data["transcribe_started_at"] is not None
+    assert mid_api_data["duration"] is not None
+    assert mid_api_data["duration"] > 0
+
+    # Verify final completed state
+    db = SessionLocal()
+    v_done = db.scalar(select(Video).where(Video.id == video_id))
+    assert v_done is not None
+    v_done.status = "transcribed"
+    v_done.progress = 100
+    db.commit()
+    db.close()
+
+    final_res = client.get(f"/api/videos/{video_id}")
+    assert final_res.status_code == 200
+    final_data = final_res.json()
+    assert final_data["progress"] == 100
+    assert final_data["status"] == "transcribed"
+    assert final_data["transcribe_started_at"] is not None
+    assert final_data["duration"] is not None
 
     # Cleanup
     client.delete(f"/api/videos/{video_id}")

@@ -14,11 +14,14 @@ from app.tasks.dummy_task import run_dummy_task
 @pytest.fixture(autouse=True)
 def configure_celery_eager() -> Generator[None, None, None]:
     """Ensure Celery tasks execute synchronously within tests."""
+    original_broker = celery_app.conf.broker_url
     original_eager = celery_app.conf.task_always_eager
     original_backend = celery_app.conf.result_backend
+    celery_app.conf.broker_url = "memory://"
     celery_app.conf.task_always_eager = True
     celery_app.conf.result_backend = "cache+memory://"
     yield
+    celery_app.conf.broker_url = original_broker
     celery_app.conf.task_always_eager = original_eager
     celery_app.conf.result_backend = original_backend
 

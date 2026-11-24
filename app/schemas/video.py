@@ -12,6 +12,8 @@ class VideoBase(BaseModel):
     fps: float | None = None
     orientation: str | None = None
     status: str = "uploaded"
+    progress: int = 0
+    transcribe_started_at: datetime | None = None
 
 
 class VideoResponse(VideoBase):

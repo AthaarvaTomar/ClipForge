@@ -38,9 +38,13 @@ class JobService:
         status: str = "PROCESSING",
         error_message: str | None = None,
         result_data: dict[str, Any] | None = None,
+        db: Session | None = None,
     ) -> Job | None:
-        """Update job progress and state in the database using a dedicated session."""
-        db = SessionLocal()
+        """Update job progress and state in the database using an existing or dedicated session."""
+        own_session = False
+        if db is None:
+            db = SessionLocal()
+            own_session = True
         try:
             job = db.scalar(select(Job).where(Job.id == job_id))
             if not job:
@@ -55,7 +59,8 @@ class JobService:
             db.refresh(job)
             return job
         finally:
-            db.close()
+            if own_session:
+                db.close()
 
     @staticmethod
     def get_job(db: Session, job_id: str) -> Job | None:

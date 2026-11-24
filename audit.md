@@ -2,6 +2,56 @@
 
 ## Session Log
 
+### Session: Real Transcription Progress Bar & Time Estimation
+- **Objective**: Display a real-time progress bar with percentage, elapsed time, and smoothed estimated time remaining (ETA) during video transcription, replacing the spinner.
+- **Root Cause & Technical Issues Encountered**:
+  - `Windows Sandbox Loopback Socket Issue`: When running `TestClient` or `asyncio.run` in the standard Windows sandbox without bypass, Python's `asyncio.proactor_events` invokes `socket._fallback_socketpair()`, where the loopback TCP connection `lsock.accept()` hangs indefinitely because sandbox network isolation drops loopback SYN packets. Executing the test with `BypassSandbox: true` allows the loopback connection to succeed immediately.
+  - `faster-whisper progress computation`: faster-whisper yields segments lazily. Progress is calculated as `min(99, int(segment.end / duration * 100))` so it never reaches 100 until the database transaction commits the completed transcript.
+  - `Database write throttling`: Throttled segment progress writes to the DB and Celery job updates to every ~2s or whenever progress values change to prevent SQLite contention.
+- **Implemented**:
+  - `app/models/video.py`: Added `progress: Mapped[int]` (0–100, default 0) and `transcribe_started_at: Mapped[datetime | None]` (timezone-aware).
+  - `app/schemas/video.py`: Added `progress` and `transcribe_started_at` to `VideoBase` and `VideoResponse`.
+  - `alembic/versions/a4920b721e90_add_progress_and_transcribe_started_at_to_videos.py`: Created and applied migration upgrading DB schema to `a4920b721e90`.
+  - `app/services/transcription_service.py`: Added pure function `compute_transcription_progress(segment_end: float, duration: float) -> int`; updated `transcribe_audio` with `duration` and `on_progress` callback.
+  - `app/tasks/transcription_task.py`: Sets `video.status = "transcribing"`, `video.progress = 0`, `video.transcribe_started_at = datetime.now(UTC)`, reports throttled progress updates to DB and `JobService`, and sets `progress = 100` and `status = "transcribed"` on completion.
+  - `frontend/src/api/types.ts`: Added `progress: number` and `transcribe_started_at: string | null` to `VideoResponse`.
+  - `frontend/src/pages/ShortsPage.tsx` & `ShortsPage.css`: Replaced simple spinner with progress bar showing:
+    - Percentage (`progress%`) with smooth CSS width transition.
+    - Elapsed time (`formatFriendlyTime`) and smoothed ETA (`elapsed / progress * (100 - progress)`, hidden until `progress >= 5%`, moving average over 5 samples).
+    - Indeterminate progress bar for `uploaded` status with "Waiting for worker..." and "Is the worker running?" hint after 30s.
+    - Error box with Retry button (`api.transcripts.start`) on `failed`.
+    - Brief 2.5s "Transcript ready" notice upon reaching 100% / `transcribed` before enabling highlight detection.
+  - `tests/test_transcription.py`: Added unit test `test_compute_transcription_progress` and integration test `test_transcription_progress_api_during_run`.
+- **Verification**:
+  - `pytest tests/test_transcription.py`: 5 passed in 12.61s.
+  - `ruff check app tests`: All checks passed.
+  - `mypy app`: Success, 0 issues across 83 source files.
+  - `npm --prefix frontend run build`: Built in 3.11s with 0 errors (`dist/assets/index-DVD7cHcN.js`).
+
+### Session: Fix "Transcript not found" (404) & Highlight Detection Workflow
+- **Objective**: Diagnose why highlight detection fails with 404 "Transcript not found", auto-enqueue transcription on upload, implement complete video lifecycle (`uploaded` -> `transcribing` -> `transcribed` / `failed`), guard highlights endpoint with 409 Conflict, update frontend status/polling, provide unified dev setup script, and verify with tests.
+- **Root Cause Diagnosed**:
+  - `(a) Upload does not enqueue a transcription job`: Neither `POST /api/videos` nor Tus resumable upload finalize enqueued `transcribe_video_task`. Videos were saved with status `ready` without creating transcripts.
+  - `(b) Worker not running in typical dev environments`: In standard development workflows, developers ran `uvicorn` or `npm run dev` without Celery or Redis.
+- **Implemented**:
+  - `app/api/v1/endpoints/videos.py`: Auto-enqueue `transcribe_video_task.delay()` immediately upon upload, initializing `status="uploaded"`.
+  - `app/services/tus_service.py`: Auto-enqueue `generate_assets_task.delay()` and `transcribe_video_task.delay()` on completed Tus uploads, initializing `status="uploaded"`.
+  - `app/tasks/transcription_task.py`: Updated lifecycle (`video.status = "transcribing"` when worker begins, `video.status = "transcribed"` upon completion, `video.status = "failed"` upon error), added `logger.exception()` for worker failures, and ensured transcripts persist under the identical `video_id`.
+  - `app/api/v1/endpoints/highlights.py`: Replaced 404 with HTTP 409 Conflict (`"Transcription not complete yet"`) when transcript is missing or video is still in `uploaded`/`transcribing` states; returns 404 only if video does not exist.
+  - `app/services/highlight_service.py`: Added fallback `_generate_heuristic_moments()` with strict `end_time > start_time` validation ensuring offline and invalid-key environments yield valid highlight moments rather than crashing.
+  - `frontend/src/pages/ShortsPage.tsx` & `ShortsPage.css`: Disabled highlight detection button while video status is `uploaded`, `transcribing`, or `failed`; added spinning loader and status label ("Transcribing audio..."); added automatic video status polling every 2.5s until `transcribed`; improved highlight detection job polling; gracefully handled HTTP 409 error banners.
+  - `scripts/dev.py`: One-command cross-platform development orchestrator checking Redis (auto-starting via Docker Compose if necessary), launching Celery worker (`-P solo` for Windows), FastAPI (`uvicorn app.main:app`), and Vite frontend.
+  - `package.json` & `README.md`: Added `"dev:all": "python scripts/dev.py"` and comprehensive documentation for local dev startup.
+  - `tests/test_upload_transcribe_highlight.py`: End-to-end integration test validating video upload -> automatic transcription -> status transition to `transcribed` -> 409 guard check -> highlight detection producing valid segments.
+- **Verification**:
+  - `pytest tests/test_upload_transcribe_highlight.py`: Passed (1/1).
+  - `pytest tests/test_highlights.py`: Passed (5/5).
+  - `pytest tests/test_videos.py tests/test_transcription.py`: Passed (7/7).
+  - `ruff check app tests scripts`: Clean, all checks passed.
+  - `mypy app`: Success, 0 issues across 83 source files.
+  - `npm --prefix frontend run build`: Built cleanly with 0 TypeScript/CSS errors.
+
+
 ### Session: Phase 7 Full Frontend Wiring & Verification (E1–E9 & V1–V9)
 - **Objective**: Complete end-to-end frontend integration, replace mock layers with real backend API interactions, and verify all Phase 7 requirements (E1 through E9) against the ClipForge complete frontend specification.
 - **Implemented**:

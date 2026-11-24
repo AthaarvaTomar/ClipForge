@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,6 +33,20 @@ def create_transcription_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Video with id '{video_id}' not found",
         )
+
+    if not Path(video.file_path).is_file():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Video file '{video.filename}' not found on disk. "
+                "Please upload the video again."
+            ),
+        )
+
+    video.status = "uploaded"
+    video.progress = 0
+    video.transcribe_started_at = None
+    db.commit()
 
     job = JobService.create_job(
         db=db,

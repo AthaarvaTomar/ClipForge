@@ -21,11 +21,14 @@ from app.tasks.celery_app import celery_app
 
 @pytest.fixture(autouse=True)
 def configure_celery_eager() -> Generator[None, None, None]:
+    original_broker = celery_app.conf.broker_url
     original_eager = celery_app.conf.task_always_eager
     original_backend = celery_app.conf.result_backend
+    celery_app.conf.broker_url = "memory://"
     celery_app.conf.task_always_eager = True
     celery_app.conf.result_backend = "cache+memory://"
     yield
+    celery_app.conf.broker_url = original_broker
     celery_app.conf.task_always_eager = original_eager
     celery_app.conf.result_backend = original_backend
 
@@ -359,6 +362,26 @@ def test_detect_highlights_task_and_endpoints(client: TestClient) -> None:
     # 5. Verify error cases
     assert client.post("/api/highlights/non-existent-id").status_code == 404
     assert client.get("/api/highlights/non-existent-id").status_code == 404
+
+    # Verify 409 Conflict when transcript is not ready
+    db_guard = SessionLocal()
+    untranscribed_vid = Video(
+        filename="untranscribed.mp4",
+        file_path="./data/uploads/untranscribed.mp4",
+        duration=10.0,
+        status="uploaded",
+    )
+    db_guard.add(untranscribed_vid)
+    db_guard.commit()
+    db_guard.refresh(untranscribed_vid)
+
+    guard_resp = client.post(f"/api/highlights/{untranscribed_vid.id}")
+    assert guard_resp.status_code == 409
+    assert "Transcription not complete yet" in guard_resp.json()["detail"]
+
+    db_guard.delete(untranscribed_vid)
+    db_guard.commit()
+    db_guard.close()
 
     # Cleanup DB
     db_clean = SessionLocal()

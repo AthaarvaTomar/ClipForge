@@ -29,6 +29,8 @@ export interface VideoResponse {
   fps: number | null
   orientation: string | null
   status: string
+  progress: number
+  transcribe_started_at: string | null
   created_at: string
   updated_at: string
 }

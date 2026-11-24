@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.logging import logger
 from app.models.video import Video
+from app.services.job_service import JobService
 from app.services.video_probe import probe_video
+from app.tasks.asset_task import generate_assets_task
+from app.tasks.transcription_task import transcribe_video_task
 
 
 class TusError(Exception):
@@ -152,11 +155,24 @@ class TusService:
             height=probe_meta.height,
             fps=probe_meta.fps,
             orientation=probe_meta.orientation,
-            status="ready",
+            status="uploaded",
         )
         db.add(video)
         db.commit()
         db.refresh(video)
+
+        # Enqueue background asset generation and transcription
+        try:
+            assets_job = JobService.create_job(db=db, job_type="ASSETS", video_id=video.id)
+            generate_assets_task.delay(job_id=assets_job.id, video_id=video.id)
+        except Exception as exc:
+            logger.warning("Failed to dispatch assets task for video %s: %s", video.id, exc)
+
+        try:
+            tx_job = JobService.create_job(db=db, job_type="transcription", video_id=video.id)
+            transcribe_video_task.delay(job_id=tx_job.id, video_id=video.id)
+        except Exception as exc:
+            logger.warning("Failed to dispatch transcription task for video %s: %s", video.id, exc)
 
         # Clean up info file
         info_p = self._info_path(upload_id)

@@ -23,6 +23,7 @@ from app.services.asset_service import (
 from app.services.job_service import JobService
 from app.services.video_probe import VideoProbeError, probe_video
 from app.tasks.asset_task import generate_assets_task
+from app.tasks.transcription_task import transcribe_video_task
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -93,15 +94,19 @@ async def upload_video(
         height=metadata.height,
         fps=metadata.fps,
         orientation=metadata.orientation,
-        status="ready",
+        status="uploaded",
     )
     db.add(video)
     db.commit()
     db.refresh(video)
 
     # Enqueue background asset generation (proxy 360p, thumbnails, waveform)
-    job = JobService.create_job(db=db, job_type="ASSETS", video_id=video.id)
-    generate_assets_task.delay(job_id=job.id, video_id=video.id)
+    assets_job = JobService.create_job(db=db, job_type="ASSETS", video_id=video.id)
+    generate_assets_task.delay(job_id=assets_job.id, video_id=video.id)
+
+    # Automatically enqueue background transcription
+    tx_job = JobService.create_job(db=db, job_type="transcription", video_id=video.id)
+    transcribe_video_task.delay(job_id=tx_job.id, video_id=video.id)
 
     return video
 

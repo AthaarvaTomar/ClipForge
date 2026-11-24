@@ -55,7 +55,7 @@ def generate_assets_task(
             return {"error": error_msg}
 
         def on_asset_progress(pct: int) -> None:
-            JobService.update_progress(job_id=job_id, progress=pct, status="PROCESSING")
+            JobService.update_progress(job_id=job_id, progress=pct, status="PROCESSING", db=db)
             if getattr(self.request, "id", None):
                 try:
                     self.update_state(state="PROCESSING", meta={"progress": pct})
@@ -75,6 +75,7 @@ def generate_assets_task(
             progress=100,
             status="COMPLETED",
             result_data=manifest,
+            db=db,
         )
         if getattr(self.request, "id", None):
             try:

@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, Integer, String
+from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -34,6 +35,11 @@ class Video(Base, TimestampMixin):
     # orientation: landscape, portrait, square
     orientation: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="uploaded", nullable=False)
+    progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    transcribe_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # Relationships
     transcripts: Mapped[list["Transcript"]] = relationship(

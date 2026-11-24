@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Download, Film, AlertCircle, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Download, Film, AlertCircle, RefreshCw, Sparkles, CheckCircle2, Loader2 } from 'lucide-react'
 import { api, ApiError, type ClipResponse, type VideoResponse } from '../api'
 import { formatDuration } from '../utils/format'
 import './ShortsPage.css'
@@ -12,6 +12,14 @@ interface RenderProgressMap {
     status: 'QUEUED' | 'RENDERING' | 'DONE' | 'FAILED'
     error?: string
   }
+}
+
+function formatFriendlyTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  const mins = Math.floor(s / 60)
+  const secs = s % 60
+  if (mins === 0) return `${secs}s`
+  return `${mins}m ${secs}s`
 }
 
 export const ShortsPage: React.FC = () => {
@@ -29,6 +37,14 @@ export const ShortsPage: React.FC = () => {
 
   // Highlight detection state for empty state helper
   const [isDetecting, setIsDetecting] = useState<boolean>(false)
+
+  // Transcription progress, time estimate & worker waiting states
+  const [isRetrying, setIsRetrying] = useState<boolean>(false)
+  const [showReadyNotice, setShowReadyNotice] = useState<boolean>(false)
+  const [etaHistory, setEtaHistory] = useState<number[]>([])
+  const [now, setNow] = useState<number>(Date.now())
+  const prevStatusRef = React.useRef<string | undefined>(video?.status)
+  const lastProgressRef = React.useRef<number>(video?.progress ?? 0)
 
   // 1. Fetch Clips & Video info
   const fetchClipsAndVideos = useCallback(async () => {
@@ -163,21 +179,157 @@ export const ShortsPage: React.FC = () => {
     setIsExportingAll(false)
   }
 
-  // 5. Trigger highlight detection (for empty state recovery)
+  // 5. Lightweight 1-second tick for elapsed seconds and worker timeout
+  useEffect(() => {
+    const s = (video?.status || '').toLowerCase()
+    if (s !== 'transcribing' && s !== 'uploaded') return
+    const timer = setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [video?.status])
+
+  const startTime = video?.transcribe_started_at
+    ? new Date(video.transcribe_started_at).getTime()
+    : video?.created_at
+    ? new Date(video.created_at).getTime()
+    : now
+  const elapsedSeconds = Math.max(0, Math.floor((now - startTime) / 1000))
+
+  const workerWaitSeconds = video?.created_at
+    ? Math.max(0, Math.floor((now - new Date(video.created_at).getTime()) / 1000))
+    : 0
+
+  // 6. ETA Calculation & Smoothing: elapsed / progress * (100 - progress) for progress >= 5%
+  useEffect(() => {
+    const p = video?.progress ?? 0
+    if (p !== lastProgressRef.current) {
+      lastProgressRef.current = p
+      if (p >= 5 && p < 100 && elapsedSeconds > 0) {
+        const rawEta = (elapsedSeconds / p) * (100 - p)
+        if (Number.isFinite(rawEta) && rawEta > 0) {
+          setEtaHistory((prev) => {
+            const next = [...prev, rawEta]
+            return next.length > 5 ? next.slice(next.length - 5) : next
+          })
+        }
+      }
+    }
+  }, [video?.progress, elapsedSeconds])
+
+  const smoothedEta =
+    (video?.progress ?? 0) >= 5 && etaHistory.length > 0
+      ? etaHistory.reduce((a, b) => a + b, 0) / etaHistory.length
+      : null
+
+  // 7. Transition detection: show "Transcript ready" briefly when status becomes transcribed
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current
+    const currentStatus = video?.status
+    prevStatusRef.current = currentStatus
+
+    if (
+      (prevStatus === 'transcribing' || prevStatus === 'uploaded') &&
+      (currentStatus === 'transcribed' || currentStatus === 'ready' || (video?.progress ?? 0) >= 100)
+    ) {
+      setShowReadyNotice(true)
+      const timer = setTimeout(() => {
+        setShowReadyNotice(false)
+      }, 2500)
+      return () => clearTimeout(timer)
+    }
+  }, [video?.status, video?.progress])
+
+  // 8. Poll video status while uploading/transcribing (updates only on progress/status changes)
+  useEffect(() => {
+    if (!videoId) return
+    const s = (video?.status || '').toLowerCase()
+    if (s !== 'uploaded' && s !== 'transcribing') return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const updatedVideo = await api.videos.get(videoId)
+        setVideo((prev) => {
+          if (!prev) return updatedVideo
+          if (
+            prev.progress !== updatedVideo.progress ||
+            prev.status !== updatedVideo.status
+          ) {
+            return updatedVideo
+          }
+          return prev
+        })
+        if (updatedVideo.status === 'transcribed' || updatedVideo.status === 'ready') {
+          const clipRes = await api.clips.list({ video_id: videoId, limit: 100 })
+          setClips(clipRes.clips || [])
+        }
+      } catch {
+        // ignore transient poll error
+      }
+    }, 2500)
+
+    return () => clearInterval(pollInterval)
+  }, [videoId, video?.status])
+
+  // 9. Retry transcription on failure
+  const handleRetryTranscription = async () => {
+    if (!videoId) return
+    setIsRetrying(true)
+    setError(null)
+    try {
+      await api.transcripts.start(videoId)
+      const refreshed = await api.videos.get(videoId)
+      setVideo(refreshed)
+      setEtaHistory([])
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to retry transcription')
+      }
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  // 10. Trigger highlight detection (for empty state recovery)
   const handleRunHighlights = async () => {
     if (!videoId) return
     setIsDetecting(true)
+    setError(null)
     try {
-      await api.highlights.start(videoId)
-      // Poll or reload clips
-      setTimeout(() => {
-        fetchClipsAndVideos()
-        setIsDetecting(false)
-      }, 2500)
+      const job = await api.highlights.start(videoId)
+      // Poll active highlight detection job
+      const pollTimer = setInterval(async () => {
+        try {
+          const currentJob = await api.jobs.get(job.id)
+          if (currentJob.status === 'COMPLETED') {
+            clearInterval(pollTimer)
+            await fetchClipsAndVideos()
+            setIsDetecting(false)
+          } else if (currentJob.status === 'FAILED') {
+            clearInterval(pollTimer)
+            setIsDetecting(false)
+            setError(currentJob.error_message || 'Highlight detection failed')
+          }
+        } catch {
+          // ignore transient poll error
+        }
+      }, 1500)
     } catch (err: unknown) {
       setIsDetecting(false)
-      if (err instanceof Error) {
-        setError(`Highlight detection failed: ${err.message}`)
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          setError('Transcription not complete yet. Please wait for transcription to finish.')
+        } else {
+          setError(err.message)
+        }
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Highlight detection failed')
       }
     }
   }
@@ -258,20 +410,140 @@ export const ShortsPage: React.FC = () => {
         <div className="projects-table-card">
           <div className="empty-state">
             <Film size={32} strokeWidth={1.5} className="empty-icon" color="var(--muted)" />
-            <span className="empty-title">No Shorts yet</span>
-            <span className="empty-desc">
-              No Shorts yet. Run highlight detection first.
+            <span className="empty-title">
+              {video?.status === 'transcribing'
+                ? 'Transcription in progress'
+                : video?.status === 'uploaded'
+                ? 'Waiting for worker...'
+                : video?.status === 'failed'
+                ? 'Transcription failed'
+                : 'No Shorts yet'}
             </span>
-            {videoId && (
+            <span className="empty-desc">
+              {video?.status === 'transcribing'
+                ? 'Video audio is currently being transcribed. Highlights can be detected once transcription is complete.'
+                : video?.status === 'uploaded'
+                ? 'Video has been uploaded and queued. Worker will begin transcription shortly.'
+                : video?.status === 'failed'
+                ? 'Transcription failed for this video. You can retry the transcription job below.'
+                : 'Video is transcribed and ready. Detect viral shorts automatically.'}
+            </span>
+
+            {/* 1. Transcribing Progress Bar */}
+            {video?.status === 'transcribing' && (
+              <div className="transcribe-progress-card" id="transcribe-progress-card">
+                <div className="transcribe-progress-header">
+                  <span className="transcribe-progress-title">
+                    Transcribing audio... {video.progress ?? 0}%
+                  </span>
+                  <span className="transcribe-progress-times mono">
+                    Elapsed {formatFriendlyTime(elapsedSeconds)}
+                    {(video.progress ?? 0) >= 5 && smoothedEta !== null
+                      ? ` - about ${formatFriendlyTime(smoothedEta)} left`
+                      : ''}
+                  </span>
+                </div>
+                <div className="transcribe-progress-track">
+                  <div
+                    className="transcribe-progress-fill"
+                    style={{ width: `${Math.max(0, Math.min(99, video.progress ?? 0))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 2. Uploaded / Waiting for worker */}
+            {video?.status === 'uploaded' && (
+              <div className="transcribe-progress-card" id="transcribe-waiting-card">
+                <div className="transcribe-progress-header">
+                  <span className="transcribe-progress-title">Waiting for worker...</span>
+                  {workerWaitSeconds > 30 && (
+                    <span className="worker-running-hint">Is the worker running?</span>
+                  )}
+                </div>
+                <div className="transcribe-progress-track">
+                  <div className="transcribe-progress-indeterminate" />
+                </div>
+                {workerWaitSeconds > 30 && (
+                  <div className="worker-hint-desc">
+                    Task is queued. If it does not start, verify your Celery worker process is running: <code>celery -A app.tasks.celery_app worker</code>
+                  </div>
+                )}
+                {workerWaitSeconds > 15 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleRetryTranscription}
+                      disabled={isRetrying}
+                      id="btn-requeue-transcription"
+                    >
+                      <RefreshCw size={14} strokeWidth={1.5} className={isRetrying ? 'animate-spin' : ''} aria-hidden="true" />
+                      <span>{isRetrying ? 'Starting transcription...' : 'Start / Re-queue Transcription'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3. Failed State with Retry Button */}
+            {video?.status === 'failed' && (
+              <div className="transcribe-failed-box" id="transcribe-failed-box">
+                <div className="transcribe-failed-header">
+                  <AlertCircle size={16} strokeWidth={1.5} />
+                  <span>Transcription failed</span>
+                </div>
+                <p className="transcribe-failed-desc">
+                  Audio extraction or faster-whisper encountered an error. Click Retry to re-enqueue transcription.
+                </p>
+                <div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleRetryTranscription}
+                    disabled={isRetrying}
+                    id="btn-retry-transcription"
+                  >
+                    <RefreshCw size={14} strokeWidth={1.5} className={isRetrying ? 'animate-spin' : ''} aria-hidden="true" />
+                    <span>{isRetrying ? 'Retrying...' : 'Retry'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Transcript Ready Brief Banner */}
+            {showReadyNotice && (
+              <div className="transcript-ready-badge" role="status">
+                <CheckCircle2 size={16} strokeWidth={1.5} aria-hidden="true" />
+                <span>Transcript ready</span>
+              </div>
+            )}
+
+            {/* 5. Detect Highlights CTA (only when not failed/waiting/transcribing) */}
+            {videoId && video?.status !== 'failed' && (
               <button
                 type="button"
                 className="btn-primary"
                 style={{ marginTop: '12px' }}
                 onClick={handleRunHighlights}
-                disabled={isDetecting}
+                disabled={
+                  isDetecting ||
+                  video?.status === 'transcribing' ||
+                  video?.status === 'uploaded'
+                }
+                id="btn-detect-highlights"
               >
-                <Sparkles size={16} strokeWidth={1.5} aria-hidden="true" />
-                <span>{isDetecting ? 'Detecting highlights...' : 'Run highlight detection'}</span>
+                {isDetecting ? (
+                  <>
+                    <Loader2 size={16} strokeWidth={1.5} className="animate-spin" aria-hidden="true" />
+                    <span>Detecting highlights...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} strokeWidth={1.5} aria-hidden="true" />
+                    <span>Detect highlights</span>
+                  </>
+                )}
               </button>
             )}
           </div>
